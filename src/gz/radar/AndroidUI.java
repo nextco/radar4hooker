@@ -348,6 +348,19 @@ public class AndroidUI {
         }catch (Resources.NotFoundException e) {
         }
         root.put("IsClickable", decorView.isClickable());
+        if (decorView.isClickable()) {
+        	Object mListenerInfo  = X.invokeObject(decorView, "getListenerInfo");
+        	if (mListenerInfo != null) {
+        		Object mOnClickListener = X.getField(mListenerInfo, "mOnClickListener");
+        		Object mOnLongClickListener = X.getField(mListenerInfo, "mOnLongClickListener");
+        		if (mOnClickListener != null) {
+        			root.put("mOnClickListener", mOnClickListener.getClass().getName() + "_" + mOnClickListener.hashCode());
+        		}
+        		if (mOnLongClickListener != null) {
+        			root.put("mOnLongClickListener", mOnLongClickListener.getClass().getName() + "_" + mOnLongClickListener.hashCode());
+        		}
+        	}
+        }
         root.put("IsVisible", decorView.getVisibility() == View.VISIBLE);
         root.put("IsEnabled", decorView.isEnabled());
         root.put("IsFocusable", decorView.isFocusable());
