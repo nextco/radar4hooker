@@ -354,10 +354,10 @@ public class AndroidUI {
         		Object mOnClickListener = X.getField(mListenerInfo, "mOnClickListener");
         		Object mOnLongClickListener = X.getField(mListenerInfo, "mOnLongClickListener");
         		if (mOnClickListener != null) {
-        			root.put("mOnClickListener", mOnClickListener.getClass().getName() + "_" + mOnClickListener.hashCode());
+        			root.put("mOnClickListener", mOnClickListener.getClass().getName() + "@" + mOnClickListener.hashCode());
         		}
         		if (mOnLongClickListener != null) {
-        			root.put("mOnLongClickListener", mOnLongClickListener.getClass().getName() + "_" + mOnLongClickListener.hashCode());
+        			root.put("mOnLongClickListener", mOnLongClickListener.getClass().getName() + "@" + mOnLongClickListener.hashCode());
         		}
         	}
         }
