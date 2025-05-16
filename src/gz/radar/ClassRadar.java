@@ -29,10 +29,11 @@ public class ClassRadar {
     /**
      * 根据 Java 全类名生成参数名，排除基本类型
      */
-    public static String generateParamName(String fullClassName, String[] existsParameterNames) {
+    public static String generateParamName(String fullClassName, String[] existsParameterNames, int argIndex, String reflectName) {
         if (fullClassName == null || fullClassName.isEmpty()) {
             return null;
         }
+        boolean isArray = fullClassName.contains("[");
         HashSet<String> primitive_types_set = new HashSet<String>();
         for (int i = 0; i < PRIMITIVE_TYPES.length; i++) {
         	primitive_types_set.add(PRIMITIVE_TYPES[i]);
@@ -43,39 +44,57 @@ public class ClassRadar {
         		existsParameterNamesSet.add(existsParameterNames[i]);
         	}
 		}
+        String paramNameResult = null;
         // 如果是基本类型，直接返回 null 或抛出异常（按需）
         if (primitive_types_set.contains(fullClassName)) {
-            return null;
-        }
-        String paramNameResult = null;
-        // 提取类名部分
-        String simpleClassName = fullClassName.substring(fullClassName.lastIndexOf('.') + 1);
-
-        if (simpleClassName.length() == 1) {
-        	paramNameResult = simpleClassName.toLowerCase();
+        	paramNameResult = fullClassName+"_arg";
         }else {
-        	paramNameResult = simpleClassName.substring(0, 1).toLowerCase() + simpleClassName.substring(1);
+        	// 提取类名部分
+            String simpleClassName = fullClassName.substring(fullClassName.lastIndexOf('.') + 1);
+
+            if (simpleClassName.length() == 1) {
+            	paramNameResult = simpleClassName.toLowerCase();
+            }else {
+            	paramNameResult = simpleClassName.substring(0, 1).toLowerCase() + simpleClassName.substring(1);
+            }
+        }
+        paramNameResult = paramNameResult.replaceAll(";", "");
+        if (paramNameResult.contains("[")) {
+        	paramNameResult = paramNameResult.replaceAll("\\[", "");
+        }
+        if (paramNameResult.length() < 2) {
+        	argIndex++;
+        	paramNameResult = ("arg"+argIndex);
+        }
+        if (isArray) {
+        	paramNameResult += "_arr";
         }
         int index = 2;
         String finalParamNameResult = paramNameResult;
+        if (reflectName != null && !reflectName.startsWith("arg")) {
+        	finalParamNameResult = reflectName;
+    	}
         while(true) {
         	if (existsParameterNamesSet.contains(finalParamNameResult)) {
-        		finalParamNameResult = paramNameResult + index;
+        		finalParamNameResult = paramNameResult + "_x" +index;
         		index ++;
         		continue;
             }
         	break;
         }
+        if (finalParamNameResult.length() < 5 && !finalParamNameResult.contains("_")) {
+        	finalParamNameResult = finalParamNameResult.toLowerCase();
+        }
         return finalParamNameResult;
     }
 
     // 示例用法
-//    public static void main(String[] args) {
-//        System.out.println(generateParamName("com.example.UserInfo", new String[] {"userInfo", "userInfo2", "userInfo3", "userInfo4"})); // userInfo
-//        System.out.println(generateParamName("int" , new String[] {"userInfo"}));                  // null
-//        System.out.println(generateParamName("java.util.Date", new String[] {"userInfo"}));       // date
-//        System.out.println(generateParamName("boolean", new String[] {"userInfo"}));              // null
-//    }
+    public static void main(String[] args) {
+        //System.out.println(generateParamName("com.example.UserInfo", new String[] {"userInfo", "userInfo2", "userInfo3", "userInfo4"}, 0)); // userInfo
+        //System.out.println(generateParamName("int" , new String[] {"userInfo"}, 0));                  // null
+        //System.out.println(generateParamName("[Ljava.lang.String;", new String[] {"userInfo"}, 0));       // date
+        //System.out.println(generateParamName("boolean", new String[] {"userInfo"}, 0));              // null
+    }
 
     public static class RadarConstructorMethod {
         public String accessType;
@@ -101,12 +120,8 @@ public class ClassRadar {
             if (parameters != null) {
             	this.parameterNames = new String[parameters.length];
             	for (int i = 0; i < parameters.length; i++) {
-            		String generateParamName = generateParamName(this.paramsClasses[i], this.parameterNames);
-            		if (generateParamName != null) {
-            			this.parameterNames[i] = generateParamName;
-            		}else {
-            			this.parameterNames[i] = parameters[i].getName();
-            		}
+            		String generateParamName = generateParamName(this.paramsClasses[i], this.parameterNames, i, parameters[i].getName());
+            		this.parameterNames[i] = generateParamName;
     			}
             }else {
             	this.parameterNames = new String[0];
