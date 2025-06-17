@@ -334,60 +334,7 @@ public class AndroidUI {
 
     public static String viewTree() throws Exception {
         Activity activity = Android.getTopActivity();
-        Resources resources =  Android.getApplication().getResources();
-        return viewTreeScan(activity.getWindow().getDecorView(), 0, resources).toJSONString();
-    }
-
-    private static JSONObject viewTreeScan(View decorView, int deep, Resources resources) throws Exception {
-        JSONObject root = new JSONObject();
-        root.put("ViewClass", decorView.getClass().getName());
-        root.put("ViewId", decorView.getId());
-        try{
-            String name = resources.getResourceEntryName(decorView.getId());
-            root.put("ViewIdName", name);
-        }catch (Resources.NotFoundException e) {
-        }
-        root.put("IsClickable", decorView.isClickable());
-        if (decorView.isClickable()) {
-        	Object mListenerInfo  = X.invokeObject(decorView, "getListenerInfo");
-        	if (mListenerInfo != null) {
-        		Object mOnClickListener = X.getField(mListenerInfo, "mOnClickListener");
-        		Object mOnLongClickListener = X.getField(mListenerInfo, "mOnLongClickListener");
-        		if (mOnClickListener != null) {
-        			root.put("mOnClickListener", mOnClickListener.getClass().getName() + "@" + mOnClickListener.hashCode());
-        		}
-        		if (mOnLongClickListener != null) {
-        			root.put("mOnLongClickListener", mOnLongClickListener.getClass().getName() + "@" + mOnLongClickListener.hashCode());
-        		}
-        	}
-        }
-        root.put("IsVisible", decorView.getVisibility() == View.VISIBLE);
-        root.put("IsEnabled", decorView.isEnabled());
-        root.put("IsFocusable", decorView.isFocusable());
-        root.put("IsFocused", decorView.isFocused());
-        root.put("IsHorizontalScrollBarEnabled", decorView.isHorizontalScrollBarEnabled());
-        root.put("IsLongClickable", decorView.isLongClickable());
-        root.put("IsSelected", decorView.isSelected());
-        root.put("IsShown", decorView.isShown());
-        root.put("Width", decorView.getWidth());
-        root.put("Height", decorView.getHeight());
-        root.put("X", decorView.getX());
-        root.put("Y", decorView.getY());
-        root.put("ViewDeep", deep);
-        if (decorView instanceof TextView) {
-            root.put("ViewText", ((TextView) decorView).getText().toString());
-        }else if (decorView instanceof ViewGroup) {
-            JSONArray childViewTree = new JSONArray();
-            ViewGroup viewGroup = (ViewGroup) decorView;
-            int newDeep = deep + 1;
-            for (int i = 0; i < viewGroup.getChildCount(); i ++) {
-                View childView = viewGroup.getChildAt(i);
-                JSONObject newRoot = viewTreeScan(childView, newDeep, resources);
-                childViewTree.add(newRoot);
-            }
-            root.put("ChildViews", childViewTree);
-        }
-        return root;
+        return ViewXmlDumper.viewToXml(activity.getWindow().getDecorView());
     }
 
     public static boolean clickByText(String text) throws Exception {
