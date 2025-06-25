@@ -6,6 +6,7 @@ import android.app.Instrumentation;
 import android.content.Intent;
 import android.content.res.Resources;
 import android.os.SystemClock;
+import android.util.Xml;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
@@ -17,14 +18,30 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.StringReader;
+import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import gz.com.alibaba.fastjson.JSONArray;
-import gz.com.alibaba.fastjson.JSONObject;
-import gz.radar.Android;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+import javax.xml.xpath.XPath;
+import javax.xml.xpath.XPathConstants;
+import javax.xml.xpath.XPathFactory;
+
+import org.w3c.dom.Document;
+import org.w3c.dom.NodeList;
+import org.xml.sax.InputSource;
+import org.xmlpull.v1.XmlPullParser;
+
 import gz.util.X;
 import gz.util.XLog;
 
@@ -334,7 +351,29 @@ public class AndroidUI {
 
     public static String viewTree() throws Exception {
         Activity activity = Android.getTopActivity();
-        return ViewXmlDumper.viewToXml(activity.getWindow().getDecorView());
+        Document document = ViewXmlDumper.viewToXml(activity.getWindow().getDecorView()).getDocument();
+        Transformer transformer = TransformerFactory.newInstance().newTransformer();
+        StringWriter writer = new StringWriter();
+        transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "no"); // 可选，是否省略头
+        transformer.setOutputProperty(OutputKeys.INDENT, "yes");              // 可选，是否缩进
+        transformer.transform(new DOMSource(document), new StreamResult(writer));
+        String xmlString = writer.toString();
+        return xmlString;
+    }
+    
+    public static void listImportantViews() throws Exception {
+    	Activity activity = Android.getTopActivity();
+        Document document = ViewXmlDumper.viewToXml(activity.getWindow().getDecorView()).getDocument();
+    	XPath xPath = XPathFactory.newInstance().newXPath();
+    	NodeList nodes = (NodeList) xPath.evaluate("//node[@class='xxx']", doc, XPathConstants.NODESET);
+    	
+    }
+    
+    public static List<View> findViewsByXpath(String xpath) throws Exception {
+    	Document doc = getDocument();
+    	XPath xPath = XPathFactory.newInstance().newXPath();
+    	NodeList nodes = (NodeList) xPath.evaluate(xpath, doc, XPathConstants.NODESET);
+    	
     }
 
     public static boolean clickByText(String text) throws Exception {
