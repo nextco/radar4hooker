@@ -58,6 +58,15 @@ public class ViewXmlDumper {
 		public Map<String, WeakReference<View>> getViewCache() {
 			return viewCache;
 		}
+		
+		public View getView(String key) {
+			if (key == null) {
+				return null;
+			}
+			WeakReference<View> ref = this.viewCache.get(key);
+			View cachedView = ref != null ? ref.get() : null;
+			return cachedView;
+		}
 	}
 
 	public static XmlDumpResult viewToXml(View view) throws Exception {

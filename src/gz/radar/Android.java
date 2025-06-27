@@ -188,28 +188,24 @@ public class Android {
             int viewId = Integer.parseInt(id.toString());
             View view = AndroidUI.findViewById(viewId);
             if (view != null) {
-                String idName = Android.getApplication().getResources().getResourceEntryName(viewId);
-                return new ViewInfo(view, idName);
+                return new ViewInfo(view);
             }
         }
         Object getObj = ObjectsStore.getObject(id);
         if (getObj != null && getObj instanceof View) {
         	View view = (View) getObj;
-        	String idName = "null";
-            if (view.getId() != -1) {
-                idName = Android.getApplication().getResources().getResourceEntryName(view.getId());
-            }
-            return new ViewInfo(view, idName);
+            return new ViewInfo(view);
         }
         if (Pattern.compile("[a-z]").matcher(id).find()) {
             String idName = id.toString();
             View view = AndroidUI.findViewByIdName(idName);
             if (view != null) {
-                return new ViewInfo(view, idName);
+                return new ViewInfo(view);
             }
         }
         return null;
     }
+    
 
     public static ServiceInfo[] getServiceInfos() throws Exception {
         ServiceInfo[] serviceInfos = null;
