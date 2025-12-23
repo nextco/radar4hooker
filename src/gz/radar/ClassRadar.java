@@ -39,6 +39,11 @@ public class ClassRadar {
         	primitive_types_set.add(PRIMITIVE_TYPES[i]);
 		}
         HashSet<String> existsParameterNamesSet = new HashSet<String>();
+        // 把java关键词排除
+        existsParameterNamesSet.add("class");
+        existsParameterNamesSet.add("return");
+        existsParameterNamesSet.add("const");
+        existsParameterNamesSet.add("function");
         for (int i = 0; i < existsParameterNames.length; i++) {
         	if (existsParameterNames[i] != null) {
         		existsParameterNamesSet.add(existsParameterNames[i]);
