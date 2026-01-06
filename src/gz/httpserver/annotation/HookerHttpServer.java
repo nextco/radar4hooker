@@ -7,7 +7,7 @@ import java.lang.annotation.Target;
 
 @Target(ElementType.TYPE)               // 只能贴在类 / 接口 上
 @Retention(RetentionPolicy.RUNTIME)     // 运行期可反射读取
-public @interface HttpServer {
+public @interface HookerHttpServer {
 
 	int port() default 8080;            // HTTP 服务端口
 }

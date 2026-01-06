@@ -1,24 +1,30 @@
 package gz.httpserver.mustang;
 
-import gz.httpserver.EmbeddHTTPServer;
+import gz.httpserver.HookerHTTPRequest;
+import gz.httpserver.annotation.HookerController;
+import gz.httpserver.annotation.HookerRequestMapping;
 
 public abstract class MustangTimerController extends MustangController {
-
-    private final long timeInterval;
+	
+	private final long timeInterval;
     private volatile long lastResponseTime;
 
-    protected MustangTimerController(String path, long timeInterval) {
-        super(path);
-        this.timeInterval = timeInterval;
-    }
+    public MustangTimerController(HookerController controllerDefinition, HookerRequestMapping requestMappingDefinition, long timeInterval) {
+		super(controllerDefinition, requestMappingDefinition);
+		this.timeInterval = timeInterval;
+	}
 
-    protected String callOnResponse(EmbeddHTTPServer.EmbeddHTTPParams embeddHTTPParams) throws Exception {
-        synchronized (this){
+	@Override
+	public Object onResponse(HookerHTTPRequest request) throws Exception {
+		synchronized (this){
             if (System.currentTimeMillis() - lastResponseTime < timeInterval) {
-                return "{code: 101, msg:\"Call too often.\",chinaeseMsg:\"调用太频繁\",lastResponseTime: "+lastResponseTime+"}";
+                return "调用太频繁";
             }
             lastResponseTime = System.currentTimeMillis();
         }
-        return onResponse(new MustangHTTPParams(embeddHTTPParams));
-    }
+        return timerOnResponse(request);
+	}
+	
+	public abstract Object timerOnResponse(HookerHTTPRequest request) throws Exception;
+    
 }

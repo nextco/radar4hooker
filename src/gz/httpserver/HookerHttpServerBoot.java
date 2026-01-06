@@ -11,36 +11,33 @@ import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
 
-import gz.httpserver.annotation.HttpServer;
-import gz.httpserver.annotation.RequestMapping;
-import gz.httpserver.annotation.RequestParam;
-import gz.httpserver.defaultcontroller.HelloWordContraler;
+import gz.httpserver.annotation.HookerController;
+import gz.httpserver.annotation.HookerHttpServer;
+import gz.httpserver.annotation.HookerRequestMapping;
+import gz.httpserver.annotation.HookerRequestParam;
 import gz.httpserver.mustang.MustangController;
-import gz.httpserver.mustang.MustangHTTPParams;
 import gz.httpserver.mustang.MustangHttpServer;
 
-public class HttpServerBoot {
+public class HookerHttpServerBoot {
 
 	public static final String HTTP_FLAG = "hooker_http_server";
 
 	public static final class AutoMustangController extends MustangController {
-
+		
 		private Object target;
 
-		private Method method;
+		private Method targetMethod;
 
-		public AutoMustangController(Object target, Method method, String path) {
-			super(path);
+		public AutoMustangController(Object target, Method targetMethod, HookerController controllerDefinition, HookerRequestMapping requestMappingDefinition) {
+			super(controllerDefinition, requestMappingDefinition);
 			this.target = target;
-			this.method = method;
-
+			this.targetMethod = targetMethod;
 		}
 
 		@Override
-		public String onResponse(MustangHTTPParams params) throws Exception {
-			Object[] args = buildMethodArgs(method, params);
-			Object result = method.invoke(target, args);
-			return result != null ? result.toString() : "";
+		public Object onResponse(HookerHTTPRequest request) throws Exception {
+			Object[] args = buildMethodArgs(targetMethod, request);
+			return targetMethod.invoke(target, args);
 		}
 	}
 	
@@ -68,29 +65,27 @@ public class HttpServerBoot {
 	    return null;
 	}
 	
-//	public static void main(String[] args) {
-//		List<String> allClz = new ArrayList<String>();
-//		allClz.add("douyin.patch.XServer");
-//		new Thread() {
-//			public void run() {
-//				System.out.println(scanAndStartHttpServer(allClz));
-//			};
-//		}.start();
-//	}
-
 	public static String scanAndStartHttpServer(List<String> allClz) {
 		try {
-			Class<?> httpServerClz = null;
+			List<Class<?>> httpServerClzList = new ArrayList<Class<?>>(); 
+			List<Class<?>> requestMappingClzList = new ArrayList<Class<?>>(); 
 			for (String clzName : allClz) {
 				Class<?> clz = Class.forName(clzName);
 				// 判断class是否有@HttpServer注解
-				if (!clz.isAnnotationPresent(HttpServer.class)) {
-					continue;
+				if (clz.isAnnotationPresent(HookerHttpServer.class)) {
+					httpServerClzList.add(clz);
+				} 
+				if (clz.isAnnotationPresent(HookerController.class)) {
+					requestMappingClzList.add(clz);
 				}
-				httpServerClz = clz;
-				return start(httpServerClz);
 			}
-			return "Not found http server definition class" ;
+			if (httpServerClzList.size() == 0) {
+				return "You should at least configure a @HookerHttpServer";
+			}
+			if (httpServerClzList.size() > 1) {
+				return "You can configure at most one @HookerHttpServer";
+			}
+			return start(httpServerClzList.get(0), requestMappingClzList);
 		} catch (Exception e) {
 			// 获取堆栈信息
 			StringWriter sw = new StringWriter();
@@ -101,51 +96,53 @@ public class HttpServerBoot {
 		}
 	}
 
-	private static String start(Class<?> httpServerClass) throws Exception {
+	private static String start(Class<?> httpServerClass, List<Class<?>> controllerClzList) throws Exception {
 		String info = "";
 		stop();
-		gz.httpserver.annotation.HttpServer serverAnno = httpServerClass
-				.getAnnotation(gz.httpserver.annotation.HttpServer.class);
+		HookerHttpServer serverAnno = httpServerClass
+				.getAnnotation(HookerHttpServer.class);
 		int port = serverAnno.port();
 		info += "Http server port:" + port + "\n";
 		String lanIP = getLanIp();
 		if (lanIP != null) {
 			info += "Http server: http://" +lanIP + ":" + port + "\n";
 		}
-		Object target = httpServerClass.getDeclaredConstructor().newInstance();
 		MustangHttpServer mustangHttpServer = new MustangHttpServer(port);
-		for (Method method : httpServerClass.getDeclaredMethods()) {
-			RequestMapping mapping = method.getAnnotation(RequestMapping.class);
-			if (mapping == null) {
-				continue;
-			}
-			String path = mapping.value();
-			// 5️⃣ 注册路由
-			mustangHttpServer.addController(new AutoMustangController(target, method, path));
-			info += "Mapping: " + path + " GET/POST\n";
-			Parameter[] parameters = method.getParameters();
-			Object[] args = new Object[parameters.length];
-			
-			for (int i = 0; i < parameters.length; i++) {
-				Parameter p = parameters[i];
-				RequestParam rp = p.getAnnotation(RequestParam.class);
-				if (rp == null) {
-					args[i] = null;
+		for (Class<?> controllerClz : controllerClzList) {
+			Object target = controllerClz.getDeclaredConstructor().newInstance();
+			HookerController controller = controllerClz.getAnnotation(HookerController.class);
+			for (Method method : controllerClz.getDeclaredMethods()) {
+				HookerRequestMapping mapping = method.getAnnotation(HookerRequestMapping.class);
+				if (mapping == null) {
 					continue;
 				}
-				String name = p.getName(); //兜底（需 -parameters）
-				if (!"".equals(rp.value())) {
-					name = rp.value();
-				}else if (!"".equals(rp.name())) {
-					name = rp.name();
+				// 5️⃣ 注册路由
+				mustangHttpServer.addController(new AutoMustangController(target, method, controller, mapping));
+				String path = controller.value();
+				path += mapping.value();
+				info += "Mapping: " + path + " " + mapping.method().name()  + "\n";
+				Parameter[] parameters = method.getParameters();
+				Object[] args = new Object[parameters.length];
+				
+				for (int i = 0; i < parameters.length; i++) {
+					Parameter p = parameters[i];
+					HookerRequestParam rp = p.getAnnotation(HookerRequestParam.class);
+					if (rp == null) {
+						args[i] = null;
+						continue;
+					}
+					String name = p.getName(); //兜底（需 -parameters）
+					if (!"".equals(rp.value())) {
+						name = rp.value();
+					}else if (!"".equals(rp.name())) {
+						name = rp.name();
+					}
+					int index = i + 1;
+					info += "\tParam "+index+" name:" + name + " type:" +  p.getType().getSimpleName() + " required:" + rp.required() + " default value:" + rp.defaultValue();
+					info += "\n";
 				}
-				int index = i + 1;
-				info += "\tParam "+index+" name:" + name + " type:" +  p.getType().getSimpleName() + " required:" + rp.required() + " default value:" + rp.defaultValue();
-				info += "\n";
 			}
 		}
-		mustangHttpServer.addController(new HelloWordContraler("/helloworld"));
-		info += "\nMapping: /helloworld GET/POST\n";
 		mustangHttpServer.start();
 		System.getProperties().put(HTTP_FLAG, mustangHttpServer);
 		return info;
@@ -161,19 +158,17 @@ public class HttpServerBoot {
 			info += "Http server: http://" +lanIP + ":" + port + "\n";
 		}
 		MustangHttpServer mustangHttpServer = new MustangHttpServer(port);
-		mustangHttpServer.addController(new HelloWordContraler("/helloworld"));
-		info += "Mapping: /helloworld GET/POST\n";
 		mustangHttpServer.start();
 		System.getProperties().put(HTTP_FLAG, mustangHttpServer);
 		return info;
 	}
 
-	private static Object[] buildMethodArgs(Method method, MustangHTTPParams params) throws Exception {
-		Parameter[] parameters = method.getParameters();
+	private static Object[] buildMethodArgs(Method targetMethod, HookerHTTPRequest request) throws Exception {
+		Parameter[] parameters = targetMethod.getParameters();
 		Object[] args = new Object[parameters.length];
 		for (int i = 0; i < parameters.length; i++) {
 			Parameter p = parameters[i];
-			RequestParam rp = p.getAnnotation(RequestParam.class);
+			HookerRequestParam rp = p.getAnnotation(HookerRequestParam.class);
 			if (rp == null) {
 				args[i] = null;
 				continue;
@@ -184,7 +179,7 @@ public class HttpServerBoot {
 			}else if (!"".equals(rp.name())) {
 				name = rp.name();
 			}
-			String value = params.getParamter(name);
+			String value = request.getParam(name);
 			if ((value == null || value.isEmpty())) {
 				value = rp.defaultValue();
 			}

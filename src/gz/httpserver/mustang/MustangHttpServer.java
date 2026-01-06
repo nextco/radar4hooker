@@ -2,10 +2,16 @@ package gz.httpserver.mustang;
 
 import java.util.ArrayList;
 import java.util.List;
-import gz.httpserver.EmbeddHTTPServer;
+import java.util.Map;
+
+import gz.com.alibaba.fastjson.JSON;
+import gz.httpserver.HookerHTTPRequest;
+import gz.httpserver.HookerHTTPServer;
+import gz.httpserver.NanoHTTPD;
+import gz.httpserver.mustang.MustangController.MatchStatus;
 import gz.util.XLog;
 
-public class MustangHttpServer extends EmbeddHTTPServer {
+public class MustangHttpServer extends HookerHTTPServer {
 
     protected final List<MustangController> mustangControllers = new ArrayList<>();
 
@@ -16,27 +22,79 @@ public class MustangHttpServer extends EmbeddHTTPServer {
     public void addController(MustangController mustangController) {
         mustangControllers.add(mustangController);
     }
-
-    protected String checkPath(String originPath) {
-        String urlPath = originPath.replaceAll("[/]{2,}", "/");
-        if (urlPath.contains("?")) {
-            urlPath = urlPath.split("\\?")[0];
-        }
-        return urlPath;
+    
+    private boolean isHtml(String text) {
+        return text != null && text.trim().startsWith("<");
     }
 
-    @Override
-    public String onResponse(String path, EmbeddHTTPParams embeddHTTPParams) throws Exception {
-        String urlPath = checkPath(path);
+
+    @SuppressWarnings({ "static-access" })
+	@Override
+    public Response onResponse(HookerHTTPRequest request) throws Exception {
         for (MustangController mustangController : mustangControllers) {
-            if (mustangController.path.equals(urlPath)) {
+        	MatchStatus matchStatus = mustangController.matchRequest(request);
+        	if (matchStatus.FAILURE == matchStatus) {
+        		continue;
+        	}
+        	if (matchStatus.CONTROLLER_NOT_SUPPORT_GET == matchStatus) {
+        		return newFixedLengthResponse(
+                        Response.Status.METHOD_NOT_ALLOWED,
+                        NanoHTTPD.MIME_PLAINTEXT,
+                        "GET not supported"
+                );
+        	}
+        	if (matchStatus.CONTROLLER_NOT_SUPPORT_POST == matchStatus) {
+        		return newFixedLengthResponse(
+                        Response.Status.METHOD_NOT_ALLOWED,
+                        NanoHTTPD.MIME_PLAINTEXT,
+                        "POST not supported"
+                );
+        	}
+            if (matchStatus.SUCCESS == matchStatus) {
             	try {
-            		return mustangController.callOnResponse(embeddHTTPParams);
+            		Object result = mustangController.onResponse(request);
+            		if (result == null) {
+            			return newFixedLengthResponse("");
+            		}
+            		if (result instanceof String) {
+            			String contentType = isHtml((String) result)
+            		            ? "text/html; charset=utf-8"
+            		            : "text/plain; charset=utf-8";
+            			return newFixedLengthResponse(
+                                Response.Status.OK,
+                                contentType,
+                                (String) result
+                        );
+            		}else if (result instanceof Map || result instanceof List) {
+            			return newFixedLengthResponse(
+                                Response.Status.OK,
+                                "application/json; charset=utf-8",
+                                JSON.toJSONString(result)
+                        );
+            		}else if (result instanceof Response) {
+            			return (Response) result;
+            		}else {
+            			return newFixedLengthResponse(
+                                Response.Status.OK,
+                                NanoHTTPD.MIME_PLAINTEXT,
+                                result.toString()
+                        );
+            		}
 				} catch (Exception e) {
-					return XLog.getPrettyHtml(XLog.getException(e));
+					String exceptionHtml = XLog.getPrettyHtml(XLog.getException(e));
+					return newFixedLengthResponse(
+	                        Response.Status.INTERNAL_ERROR,
+	                        "text/html; charset=utf-8",
+	                        exceptionHtml
+	                );
 				}
             }
         }
-        return "{msg:\"Not found the path '"+path+"'.\"}";
+        return newFixedLengthResponse(
+                Response.Status.NOT_FOUND,
+                NanoHTTPD.MIME_PLAINTEXT,
+                "404 Not Found: " + request.getUrlPath()
+        );
     }
+    
 }

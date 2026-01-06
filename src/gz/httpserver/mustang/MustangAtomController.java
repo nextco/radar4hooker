@@ -2,27 +2,29 @@ package gz.httpserver.mustang;
 
 import java.util.concurrent.locks.ReentrantLock;
 
-import gz.httpserver.EmbeddHTTPServer;
+import gz.httpserver.HookerHTTPRequest;
+import gz.httpserver.annotation.HookerController;
+import gz.httpserver.annotation.HookerRequestMapping;
 import gz.util.XLog;
 
 public abstract class MustangAtomController extends MustangController {
+	
+	private final ReentrantLock reentrantLock = new ReentrantLock(true);
 
-    private final ReentrantLock reentrantLock = new ReentrantLock(true);
-
-
-    protected MustangAtomController(String path) {
-        super(path);
-    }
-
-    protected String callOnResponse(EmbeddHTTPServer.EmbeddHTTPParams embeddHTTPParams) throws Exception {
-        if (reentrantLock.isLocked()) {
-            return "{msg:\"Device is busy now.\",chinaeseMsg:\"当前有任务在执行\"}";
+    public MustangAtomController(HookerController controllerDefinition, HookerRequestMapping requestMappingDefinition) {
+		super(controllerDefinition, requestMappingDefinition);
+	}
+    
+    @Override
+	public Object onResponse(HookerHTTPRequest request) throws Exception {
+    	if (reentrantLock.isLocked()) {
+            return "当前有任务在执行";
         }
         Exception happendEx = null;
-        String response = null;
+        Object response = null;
         try{
             reentrantLock.lock();
-            response = this.onResponse(new MustangHTTPParams(embeddHTTPParams));
+            response = atomOnResponse(request);
         }catch (Exception e) {
             XLog.appendText(e);
             happendEx = e;;
@@ -33,5 +35,8 @@ public abstract class MustangAtomController extends MustangController {
             throw happendEx;
         }
         return response;
-    }
+	}
+    
+    public abstract Object atomOnResponse(HookerHTTPRequest request) throws Exception;
+    
 }
