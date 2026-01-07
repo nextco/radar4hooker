@@ -25,7 +25,13 @@ public class Logger {
         // stack[1] = this.log
         // stack[2] = info/warn/error
         // stack[3] = 调用者 → 我们要取这个
-        StackTraceElement caller = stack.length > 3 ? stack[3] : stack[stack.length - 1];
+        StackTraceElement caller = stack[0];
+        for (StackTraceElement e : stack) {
+            if (e.getClassName().equals(className)) {
+            	caller = e;
+            	break;
+            }
+        }
         String line = String.format(
                 "[%s] [%s] [%s.%s:%d] %s%n",
                 level,
@@ -38,7 +44,7 @@ public class Logger {
         try (FileWriter fw = new FileWriter(logFile, true)) {
             fw.write(line);
         } catch (IOException e) {
-            e.printStackTrace();
+            XLog.appendText(e);
         }
     }
 

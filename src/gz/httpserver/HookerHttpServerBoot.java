@@ -139,9 +139,7 @@ public class HookerHttpServerBoot {
 						continue;
 					}
 					String name = p.getName(); //兜底（需 -parameters）
-					if (!"".equals(hookerRequestParam.value())) {
-						name = hookerRequestParam.value();
-					}else if (!"".equals(hookerRequestParam.name())) {
+					if (!"".equals(hookerRequestParam.name())) {
 						name = hookerRequestParam.name();
 					}
 					int index = i + 1;
@@ -177,9 +175,7 @@ public class HookerHttpServerBoot {
 			if (reflectParam.isAnnotationPresent(HookerRequestParam.class)) {
 				HookerRequestParam hookerRquestParam = reflectParam.getAnnotation(HookerRequestParam.class);
 				String name = reflectParam.getName(); //兜底（需 -parameters）
-				if (!"".equals(hookerRquestParam.value())) {
-					name = hookerRquestParam.value();
-				}else if (!"".equals(hookerRquestParam.name())) {
+				if (!"".equals(hookerRquestParam.name())) {
 					name = hookerRquestParam.name();
 				}
 				String value = request.getParam(name);

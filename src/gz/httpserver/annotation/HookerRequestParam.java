@@ -9,9 +9,7 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface HookerRequestParam {
 
-	String value() default "";
-
-	String name() default "";
+	String name();
 
 	boolean required() default true;
 
