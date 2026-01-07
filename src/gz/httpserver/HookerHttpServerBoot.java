@@ -10,15 +10,21 @@ import java.net.NetworkInterface;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.Map;
 
+import gz.com.alibaba.fastjson.JSON;
 import gz.httpserver.annotation.HookerController;
 import gz.httpserver.annotation.HookerHttpServer;
 import gz.httpserver.annotation.HookerRequestMapping;
 import gz.httpserver.annotation.HookerRequestParam;
+import gz.httpserver.annotation.HookerRequestPostJson;
 import gz.httpserver.mustang.MustangController;
 import gz.httpserver.mustang.MustangHttpServer;
+import gz.util.Logger;
 
 public class HookerHttpServerBoot {
+	
+	private static Logger logger = new Logger(HookerHttpServerBoot.class);
 
 	public static final String HTTP_FLAG = "hooker_http_server";
 
@@ -92,6 +98,7 @@ public class HookerHttpServerBoot {
 			PrintWriter pw = new PrintWriter(sw);
 			e.printStackTrace(pw);
 			pw.flush();
+			logger.error(e);
 			return sw.toString();
 		}
 	}
@@ -126,25 +133,24 @@ public class HookerHttpServerBoot {
 				
 				for (int i = 0; i < parameters.length; i++) {
 					Parameter p = parameters[i];
-					HookerRequestParam rp = p.getAnnotation(HookerRequestParam.class);
-					if (rp == null) {
+					HookerRequestParam hookerRequestParam = p.getAnnotation(HookerRequestParam.class);
+					if (hookerRequestParam == null) {
 						args[i] = null;
 						continue;
 					}
 					String name = p.getName(); //兜底（需 -parameters）
-					if (!"".equals(rp.value())) {
-						name = rp.value();
-					}else if (!"".equals(rp.name())) {
-						name = rp.name();
+					if (!"".equals(hookerRequestParam.value())) {
+						name = hookerRequestParam.value();
+					}else if (!"".equals(hookerRequestParam.name())) {
+						name = hookerRequestParam.name();
 					}
 					int index = i + 1;
-					info += "\tParam "+index+" name:" + name + " type:" +  p.getType().getSimpleName() + " required:" + rp.required() + " default value:" + rp.defaultValue();
+					info += "\tParam "+index+" name:" + name + " type:" +  p.getType().getSimpleName() + " required:" + hookerRequestParam.required() + " default value:" + hookerRequestParam.defaultValue();
 					info += "\n";
 				}
 			}
 		}
 		mustangHttpServer.start();
-		System.getProperties().put(HTTP_FLAG, mustangHttpServer);
 		return info;
 	}
 	
@@ -158,8 +164,8 @@ public class HookerHttpServerBoot {
 			info += "Http server: http://" +lanIP + ":" + port + "\n";
 		}
 		MustangHttpServer mustangHttpServer = new MustangHttpServer(port);
+		logger.info("webserver start at " + port);
 		mustangHttpServer.start();
-		System.getProperties().put(HTTP_FLAG, mustangHttpServer);
 		return info;
 	}
 
@@ -167,26 +173,31 @@ public class HookerHttpServerBoot {
 		Parameter[] parameters = targetMethod.getParameters();
 		Object[] args = new Object[parameters.length];
 		for (int i = 0; i < parameters.length; i++) {
-			Parameter p = parameters[i];
-			HookerRequestParam rp = p.getAnnotation(HookerRequestParam.class);
-			if (rp == null) {
+			Parameter reflectParam = parameters[i];
+			if (reflectParam.isAnnotationPresent(HookerRequestParam.class)) {
+				HookerRequestParam hookerRquestParam = reflectParam.getAnnotation(HookerRequestParam.class);
+				String name = reflectParam.getName(); //兜底（需 -parameters）
+				if (!"".equals(hookerRquestParam.value())) {
+					name = hookerRquestParam.value();
+				}else if (!"".equals(hookerRquestParam.name())) {
+					name = hookerRquestParam.name();
+				}
+				String value = request.getParam(name);
+				if ((value == null || value.isEmpty())) {
+					value = hookerRquestParam.defaultValue();
+				}
+				if ((value == null || value.isEmpty()) && hookerRquestParam.required()) {
+					throw new IllegalArgumentException("Missing request param: " + name);
+				}
+				args[i] = convert(value, reflectParam.getType());
+			}else if(reflectParam.isAnnotationPresent(HookerRequestPostJson.class)) {
+				String postRaw = request.getPostRaw();
+				args[i] = convert(postRaw, reflectParam.getType());
+			} else {
 				args[i] = null;
+				logger.warn("parameter "+i+" have no annotations: " + targetMethod);
 				continue;
 			}
-			String name = p.getName(); //兜底（需 -parameters）
-			if (!"".equals(rp.value())) {
-				name = rp.value();
-			}else if (!"".equals(rp.name())) {
-				name = rp.name();
-			}
-			String value = request.getParam(name);
-			if ((value == null || value.isEmpty())) {
-				value = rp.defaultValue();
-			}
-			if ((value == null || value.isEmpty()) && rp.required()) {
-				throw new IllegalArgumentException("Missing request param: " + name);
-			}
-			args[i] = convert(value, p.getType());
 		}
 		return args;
 	}
@@ -195,7 +206,7 @@ public class HookerHttpServerBoot {
 		if (value == null) {
 			return null;
 		}
-		if (type == String.class) {
+		if (type == String.class || CharSequence.class.isAssignableFrom(type)) {
 			return value;
 		}
 		if (type == int.class || type == Integer.class) {
@@ -206,6 +217,9 @@ public class HookerHttpServerBoot {
 		}
 		if (type == boolean.class || type == Boolean.class) {
 			return Boolean.parseBoolean(value);
+		}
+		if (Map.class.isAssignableFrom(type) || List.class.isAssignableFrom(type)) {
+			return JSON.parseObject(value, type);
 		}
 		throw new IllegalArgumentException("Unsupported param type: " + type);
 	}
@@ -220,5 +234,5 @@ public class HookerHttpServerBoot {
 		} catch (Exception e) {
 		}
 	}
-
+	
 }

@@ -7,14 +7,19 @@ import java.util.Map;
 import gz.com.alibaba.fastjson.JSON;
 import gz.httpserver.HookerHTTPRequest;
 import gz.httpserver.HookerHTTPServer;
+import gz.httpserver.HookerHttpServerBoot;
 import gz.httpserver.NanoHTTPD;
+import gz.httpserver.controller.WelcomeController;
 import gz.httpserver.mustang.MustangController.MatchStatus;
+import gz.util.Logger;
 import gz.util.XLog;
 
 public class MustangHttpServer extends HookerHTTPServer {
+	
+	private static Logger logger = new Logger(MustangHttpServer.class);
 
     protected final List<MustangController> mustangControllers = new ArrayList<>();
-
+    
     public MustangHttpServer(int port) {
         super(port);
     }
@@ -27,10 +32,18 @@ public class MustangHttpServer extends HookerHTTPServer {
         return text != null && text.trim().startsWith("<");
     }
 
-
+    
     @SuppressWarnings({ "static-access" })
 	@Override
     public Response onResponse(HookerHTTPRequest request) throws Exception {
+    	logger.info("onResponse path: " + request.getUrlPath());
+    	if (request.getUrlPath().equals("/")) {
+			return newFixedLengthResponse(
+                    Response.Status.OK,
+                    "text/html; charset=utf-8",
+                    new WelcomeController().welcome()
+            );
+    	}
         for (MustangController mustangController : mustangControllers) {
         	MatchStatus matchStatus = mustangController.matchRequest(request);
         	if (matchStatus.FAILURE == matchStatus) {
@@ -81,6 +94,7 @@ public class MustangHttpServer extends HookerHTTPServer {
                         );
             		}
 				} catch (Exception e) {
+					logger.error(e);
 					String exceptionHtml = XLog.getPrettyHtml(XLog.getException(e));
 					return newFixedLengthResponse(
 	                        Response.Status.INTERNAL_ERROR,

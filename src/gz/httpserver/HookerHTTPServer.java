@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 
+import gz.httpserver.annotation.HookerLogger;
+
 public abstract class HookerHTTPServer extends NanoHTTPD {
 
 	public HookerHTTPServer(int port) {
