@@ -41,11 +41,12 @@ public class Logger {
                 caller.getLineNumber(),  // 行号
                 msg
         );
-        try (FileWriter fw = new FileWriter(logFile, true)) {
-            fw.write(line);
-        } catch (IOException e) {
-            XLog.appendText(e);
-        }
+        System.out.println(line);
+//        try (FileWriter fw = new FileWriter(logFile, true)) {
+//            fw.write(line);
+//        } catch (IOException e) {
+//            XLog.appendText(e);
+//        }
     }
 
     public void info(String msg) {

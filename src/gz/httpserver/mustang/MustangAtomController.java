@@ -2,7 +2,7 @@ package gz.httpserver.mustang;
 
 import java.util.concurrent.locks.ReentrantLock;
 
-import gz.httpserver.HookerHTTPRequest;
+import gz.httpserver.HookerWebRequest;
 import gz.httpserver.annotation.HookerController;
 import gz.httpserver.annotation.HookerRequestMapping;
 import gz.util.XLog;
@@ -16,7 +16,7 @@ public abstract class MustangAtomController extends MustangController {
 	}
     
     @Override
-	public Object onResponse(HookerHTTPRequest request) throws Exception {
+	public Object onResponse(HookerWebRequest request) throws Exception {
     	if (reentrantLock.isLocked()) {
             return "当前有任务在执行";
         }
@@ -37,6 +37,6 @@ public abstract class MustangAtomController extends MustangController {
         return response;
 	}
     
-    public abstract Object atomOnResponse(HookerHTTPRequest request) throws Exception;
+    public abstract Object atomOnResponse(HookerWebRequest request) throws Exception;
     
 }

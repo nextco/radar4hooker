@@ -1,6 +1,6 @@
 package gz.httpserver.mustang;
 
-import gz.httpserver.HookerHTTPRequest;
+import gz.httpserver.HookerWebRequest;
 import gz.httpserver.annotation.HookerController;
 import gz.httpserver.annotation.HookerRequestMapping;
 
@@ -15,7 +15,7 @@ public abstract class MustangTimerController extends MustangController {
 	}
 
 	@Override
-	public Object onResponse(HookerHTTPRequest request) throws Exception {
+	public Object onResponse(HookerWebRequest request) throws Exception {
 		synchronized (this){
             if (System.currentTimeMillis() - lastResponseTime < timeInterval) {
                 return "调用太频繁";
@@ -25,6 +25,6 @@ public abstract class MustangTimerController extends MustangController {
         return timerOnResponse(request);
 	}
 	
-	public abstract Object timerOnResponse(HookerHTTPRequest request) throws Exception;
+	public abstract Object timerOnResponse(HookerWebRequest request) throws Exception;
     
 }

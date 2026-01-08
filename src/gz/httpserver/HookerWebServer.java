@@ -6,18 +6,18 @@ import java.io.StringWriter;
 
 import gz.httpserver.annotation.HookerLogger;
 
-public abstract class HookerHTTPServer extends NanoHTTPD {
-
-	public HookerHTTPServer(int port) {
+public abstract class HookerWebServer extends NanoHTTPD {
+	
+	protected HookerWebServer(int port) {
 		super("0.0.0.0", port);
 	}
 	
-	public abstract Response onResponse(HookerHTTPRequest request) throws Exception;
+	public abstract Response onResponse(HookerWebRequest request) throws Exception;
 
 	@Override
 	public Response serve(IHTTPSession session) {
 		try {
-			HookerHTTPRequest request = new HookerHTTPRequest(session);
+			HookerWebRequest request = new HookerWebRequest(session);
 			Response reponse = onResponse(request);
 			return reponse;
 		} catch (Exception e) {
@@ -29,25 +29,21 @@ public abstract class HookerHTTPServer extends NanoHTTPD {
 
 	@Override
 	public void start() throws IOException {
-		// TODO Auto-generated method stub
 		super.start();
 	}
 
 	@Override
 	public void start(int arg0, boolean arg1) throws IOException {
-		// TODO Auto-generated method stub
 		super.start(arg0, arg1);
 	}
 
 	@Override
 	public void start(int timeout) throws IOException {
-		// TODO Auto-generated method stub
 		super.start(timeout);
 	}
 
 	@Override
 	public void stop() {
-		// TODO Auto-generated method stub
 		super.stop();
 	}
 

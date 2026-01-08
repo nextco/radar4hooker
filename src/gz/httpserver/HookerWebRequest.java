@@ -10,7 +10,7 @@ import gz.httpserver.NanoHTTPD.Method;
 import gz.httpserver.NanoHTTPD.ResponseException;
 import gz.httpserver.annotation.HookerRequestMapping;
 
-public class HookerHTTPRequest {
+public class HookerWebRequest {
 
 	private final IHTTPSession session;
 	
@@ -20,7 +20,7 @@ public class HookerHTTPRequest {
 	
 	private String urlPath;
 
-	public HookerHTTPRequest(IHTTPSession session) throws IOException, ResponseException {
+	public HookerWebRequest(IHTTPSession session) throws IOException, ResponseException {
 		this.session = session;
 		this.parameter = session.getParameters();
 		if (isPost()) {

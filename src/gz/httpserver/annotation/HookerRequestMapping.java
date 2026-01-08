@@ -13,8 +13,35 @@ public @interface HookerRequestMapping {
 	    GET, POST
 	}
 	
-	String value() default "/";
+	public static enum Produces {
+	    TEXT("text/plain; charset=utf-8"),
+	    HTML("text/html; charset=utf-8"),
+	    JSON("application/json; charset=utf-8"),
+	    AUTO("auto");
+
+	    private final String value;
+
+	    Produces(String value) {
+	        this.value = value;
+	    }
+
+	    public String value() {
+	        return value;
+	    }
+
+	    @Override
+	    public String toString() {
+	        return value; // 想打印自定义名称就这样
+	    }
+	}
+
+	
+	String path();
+	
+	Produces produces() default Produces.AUTO;
 	
 	Method method() default Method.GET;
+	
+	
 	
 }
