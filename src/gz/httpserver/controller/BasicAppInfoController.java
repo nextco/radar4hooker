@@ -111,32 +111,10 @@ public class BasicAppInfoController {
 	    /* ===== 签名 ===== */
 	    try {
 	    	// 9.0 (Pie) 28
-	        Field signingInfoField = PackageInfo.class.getDeclaredField("signingInfo");
-	        signingInfoField.setAccessible(true);
-	        Object signingInfo = signingInfoField.get(pi);
-	        if (signingInfo != null) {
-	            List<String> sigList = new ArrayList<>();
-	            // 反射调用 getApkContentsSigners()
-	            Method getSignersMethod = signingInfo.getClass().getDeclaredMethod("getApkContentsSigners");
-	            getSignersMethod.setAccessible(true);
-	            Signature[] signatures = (Signature[]) getSignersMethod.invoke(signingInfo);
-	            if (signatures != null) {
-	                for (Signature sig : signatures) {
-	                    sigList.add(sig.toCharsString());
-	                }
-	            }
-	            info.put("signatures", sigList);
-	        }
+	    	info.put("signature", Android.getSignatureInfo());
 	    } catch (Exception e) {
 	        logger.warn(e);
 	        // 失败时可降级处理，例如 pi.signatures（Android 9 以下）
-	        if (pi.signatures != null) {
-	            List<String> sigList = new ArrayList<>();
-	            for (Signature sig : pi.signatures) {
-	                sigList.add(sig.toCharsString());
-	            }
-	            info.put("signatures", sigList);
-	        }
 	    }
 
 	    /* ===== 常见目录 ===== */
