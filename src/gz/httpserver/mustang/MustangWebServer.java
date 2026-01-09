@@ -9,7 +9,6 @@ import gz.com.alibaba.fastjson.JSON;
 import gz.httpserver.HookerWebRequest;
 import gz.httpserver.HookerWebServer;
 import gz.httpserver.NanoHTTPD;
-import gz.httpserver.annotation.HookerRequestParam;
 import gz.httpserver.annotation.HookerRequestMapping.Produces;
 import gz.httpserver.mustang.MustangControllerRouter.FindResult;
 import gz.util.Logger;
@@ -86,7 +85,7 @@ public class MustangWebServer extends HookerWebServer {
 				String exceptionHtml = XLog.getPrettyHtml(XLog.getException(e));
 				return newFixedLengthResponse(
                         Response.Status.INTERNAL_ERROR,
-                        Produces.TEXT.value(),
+                        Produces.HTML.value(),
                         exceptionHtml
                 );
 			}

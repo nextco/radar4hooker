@@ -49,7 +49,7 @@ public class BasicServiceController {
 				logger.info("stop HookerWebServer");
 			};
 		}.start();
-		return "web server stoped";
+		return "webserver will be stoped soon. Good-bye.";
 	}
 	
 }

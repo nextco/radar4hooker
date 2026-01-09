@@ -41,12 +41,11 @@ public class Logger {
                 caller.getLineNumber(),  // 行号
                 msg
         );
-        System.out.println(line);
-//        try (FileWriter fw = new FileWriter(logFile, true)) {
-//            fw.write(line);
-//        } catch (IOException e) {
-//            XLog.appendText(e);
-//        }
+        try (FileWriter fw = new FileWriter(logFile, true)) {
+            fw.write(line);
+        } catch (IOException e) {
+            XLog.appendText(e);
+        }
     }
 
     public void info(String msg) {
@@ -58,28 +57,18 @@ public class Logger {
     }
 
     public void warn(Exception e) {
-        logException("[WARN]", e);
+        logException("WARN", e);
     }
 
     public void error(Exception e) {
-        logException("[ERROR]", e);
+        logException("ERROR", e);
     }
 
     public void error(String msg) {
         log("ERROR", msg);
     }
     
-    /** 统一异常日志输出 */
     private void logException(String level, Exception ex) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(ex.toString()).append("\n");
-
-        for (StackTraceElement element : ex.getStackTrace()) {
-            sb.append("    at ")
-              .append(element.toString())
-              .append("\n");
-        }
-
-        log(level, sb.toString());
+        log(level, XLog.getException(ex));
     }
 }

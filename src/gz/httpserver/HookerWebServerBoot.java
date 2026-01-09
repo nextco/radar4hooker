@@ -13,7 +13,9 @@ import java.util.List;
 import gz.httpserver.annotation.HookerController;
 import gz.httpserver.annotation.HookerWebServerConfiguration;
 import gz.httpserver.annotation.HookerRequestMapping;
+import gz.httpserver.controller.BasicAppInfoController;
 import gz.httpserver.controller.BasicServiceController;
+import gz.httpserver.controller.BasicUIServiceController;
 import gz.httpserver.mustang.MustangAutoJnjectionController;
 import gz.httpserver.mustang.MustangWebServer;
 import gz.util.Logger;
@@ -91,6 +93,8 @@ public class HookerWebServerBoot {
 		MustangWebServer mustangHttpServer = new MustangWebServer(port);
 		
 		controllerClzList.add(BasicServiceController.class);
+		controllerClzList.add(BasicUIServiceController.class);
+		controllerClzList.add(BasicAppInfoController.class);
 		
 		for (Class<?> controllerClz : controllerClzList) {
 			Object target = controllerClz.getDeclaredConstructor().newInstance();
