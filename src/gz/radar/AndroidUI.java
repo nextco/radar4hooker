@@ -5,6 +5,7 @@ import android.app.Application;
 import android.app.Instrumentation;
 import android.content.Intent;
 import android.content.res.Resources;
+import android.os.Bundle;
 import android.os.SystemClock;
 import android.util.Xml;
 import android.view.KeyEvent;
@@ -303,6 +304,21 @@ public class AndroidUI {
         Intent intent = new Intent(activity, activityClass);
         activity.startActivity(intent);
     }
+    
+    public static void startActivity(String className, Bundle extras, String type) throws Exception {
+        Intent intent = new Intent();
+        Application ctx = Android.getApplication();
+        intent.setClassName(ctx, className);
+        if (type != null) {
+        	intent.setType(type);
+        }
+        if (extras != null) {
+            intent.putExtras(extras);
+        }
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        ctx.startActivity(intent);
+    }
+
 
     public static void finishCurrentActivity() throws Exception {
         final Activity activity = Android.getTopActivity();
