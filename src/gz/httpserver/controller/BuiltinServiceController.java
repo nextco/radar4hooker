@@ -13,9 +13,9 @@ import gz.httpserver.mustang.MustangWebServer;
 import gz.util.Logger;
 
 @HookerController("/")
-public class BasicServiceController {
+public class BuiltinServiceController {
 	
-	private Logger logger = new Logger(BasicServiceController.class);
+	private Logger logger = new Logger(BuiltinServiceController.class);
 
 	@HookerRequestMapping(path="/", produces = Produces.HTML)
 	public String welcome(HookerWebServer hookerWebServer) {

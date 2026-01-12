@@ -27,9 +27,9 @@ import gz.radar.Android;
 import gz.util.Logger;
 
 @HookerController("/hooker/appinfo/")
-public class BasicAppInfoController {
+public class BuiltinAppInfoController {
 	
-	private Logger logger = new Logger(BasicAppInfoController.class);
+	private Logger logger = new Logger(BuiltinAppInfoController.class);
 	
 	@HookerRequestMapping(path="", produces = Produces.AUTO)
 	public Map<String, Object> app_info() throws Exception {

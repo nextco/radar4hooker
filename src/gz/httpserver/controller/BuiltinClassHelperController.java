@@ -13,9 +13,9 @@ import gz.util.Logger;
 import gz.util.XLog;
 
 @HookerController("/hooker/classhelper/")
-public class FoundationClassHelperController {
+public class BuiltinClassHelperController {
 	
-	private Logger logger = new Logger(FoundationClassHelperController.class);
+	private Logger logger = new Logger(BuiltinClassHelperController.class);
 
 	@HookerRequestMapping(path="invoke_static_method", produces = Produces.AUTO, method = gz.httpserver.annotation.HookerRequestMapping.Method.POST)
 	public Map<String, Object> invoke_static_method(@HookerRequestPostJson Map<String, Object> class_info) throws Exception {
