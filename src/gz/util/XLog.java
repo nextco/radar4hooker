@@ -67,7 +67,7 @@ public class XLog {
         appendText(getException(ex));
     }
 
-    public static String getException(Exception e) {
+    public static String getException(Throwable e) {
         Writer writer = null;
         PrintWriter printWriter = null;
         try {

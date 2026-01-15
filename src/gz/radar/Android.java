@@ -1,9 +1,11 @@
 package gz.radar;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.Application;
 import android.app.Service;
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
@@ -35,6 +37,19 @@ import gz.com.alibaba.fastjson.JSONArray;
 import gz.com.alibaba.fastjson.JSONObject;
 
 public class Android {
+	
+	public static boolean hasSdcardWritePermit() throws Exception {
+    	boolean hasPermission;
+		Context ctx = Android.getApplication();
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+		    hasPermission =
+		            ctx.checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE)
+		                    == PackageManager.PERMISSION_GRANTED;
+		} else {
+		    hasPermission = true; // 6.0 以下安装即授予
+		}
+		return hasPermission;
+    }
 	
 	public static String getBundleProfile(Bundle bundle) throws Exception {
 		if (bundle != null) {
@@ -86,6 +101,7 @@ public class Android {
             activity.requestPermissions(permissions, requestCode);
         }
     }
+	
 
     public static <T extends Activity> T getTopActivity() throws Exception {
         Class activityThreadClass = Class.forName("android.app.ActivityThread");
@@ -103,7 +119,8 @@ public class Android {
                 return (T) activityField.get(activityClientRecord);
             }
         }
-        throw new Exception("请确认app界面已经打开，并且手机没有熄屏。");
+        // throw new Exception("请确认app界面已经打开，并且手机没有熄屏,或者看看前台有没有Dialog");
+        return null;
     }
 
     public static <T extends Application> T getApplication() throws Exception {

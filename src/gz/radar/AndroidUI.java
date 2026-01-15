@@ -1,10 +1,14 @@
 package gz.radar;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.Application;
 import android.app.Instrumentation;
+import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.res.Resources;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.util.Xml;
@@ -141,7 +145,7 @@ public class AndroidUI {
         Resources resources =  Android.getApplication().getResources();
         int id = resources.getIdentifier(idName, "id", application.getPackageName());
         if (id == 0 ) {
-            throw new Exception("Not Found View.");
+            throw new Exception("There is no such id");
         }
         return findViewById(id);
     }

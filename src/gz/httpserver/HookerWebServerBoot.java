@@ -10,6 +10,11 @@ import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
 
+import android.Manifest;
+import android.content.Context;
+import android.content.pm.PackageManager;
+import android.os.Build;
+import android.support.v4.content.ContextCompat;
 import gz.httpserver.annotation.HookerController;
 import gz.httpserver.annotation.HookerWebServerConfiguration;
 import gz.httpserver.annotation.HookerRequestMapping;
@@ -19,6 +24,8 @@ import gz.httpserver.controller.BuiltinUIServiceController;
 import gz.httpserver.controller.BuiltinClassHelperController;
 import gz.httpserver.mustang.MustangAutoJnjectionController;
 import gz.httpserver.mustang.MustangWebServer;
+import gz.radar.Android;
+import gz.radar.AndroidUI;
 import gz.util.Logger;
 
 public class HookerWebServerBoot {
@@ -104,7 +111,7 @@ public class HookerWebServerBoot {
 			for (Method method : controllerClz.getDeclaredMethods()) {
 				HookerRequestMapping mapping = method.getAnnotation(HookerRequestMapping.class);
 				if (mapping == null) {
-					logger.info("找不到HookerRequestMapping:"+method);
+					//logger.info("找不到HookerRequestMapping:"+method);
 					continue;
 				}
 				// 5️⃣ 注册路由
@@ -113,6 +120,15 @@ public class HookerWebServerBoot {
 		}
 		mustangHttpServer.start();
 		logger.info("webserver start at " + port);
+		boolean hasPermission;
+		Context ctx = Android.getApplication();
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+		    hasPermission =
+		            ctx.checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE)
+		                    == PackageManager.PERMISSION_GRANTED;
+		} else {
+		    hasPermission = true; // 6.0 以下安装即授予
+		}
 		return info;
 	}
 	

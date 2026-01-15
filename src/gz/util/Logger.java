@@ -56,11 +56,11 @@ public class Logger {
         log("WARN", msg);
     }
 
-    public void warn(Exception e) {
+    public void warn(Throwable e) {
         logException("WARN", e);
     }
 
-    public void error(Exception e) {
+    public void error(Throwable e) {
         logException("ERROR", e);
     }
 
@@ -68,7 +68,7 @@ public class Logger {
         log("ERROR", msg);
     }
     
-    private void logException(String level, Exception ex) {
+    private void logException(String level, Throwable ex) {
         log(level, XLog.getException(ex));
     }
 }

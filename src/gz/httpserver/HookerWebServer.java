@@ -7,6 +7,7 @@ import java.io.StringWriter;
 import gz.httpserver.NanoHTTPD.Response;
 import gz.httpserver.annotation.HookerLogger;
 import gz.httpserver.annotation.HookerRequestMapping.Produces;
+import gz.radar.Android;
 import gz.radar.AndroidUI;
 import gz.util.XLog;
 
@@ -38,7 +39,11 @@ public abstract class HookerWebServer extends NanoHTTPD {
 	public void start() throws IOException {
 		super.start();
 		try {
-			AndroidUI.showToast("webserver启动了，牛逼不？");
+			if (!Android.hasSdcardWritePermit()) {
+				AndroidUI.showToast("没有写sdcard权限大哥，我怎么写日志啊？");
+			}else {
+				AndroidUI.showToast("webserver启动了，牛逼不？");
+			}
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
