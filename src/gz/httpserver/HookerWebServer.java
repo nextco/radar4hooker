@@ -1,11 +1,7 @@
 package gz.httpserver;
 
 import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.StringWriter;
 
-import gz.httpserver.NanoHTTPD.Response;
-import gz.httpserver.annotation.HookerLogger;
 import gz.httpserver.annotation.HookerRequestMapping.Produces;
 import gz.radar.Android;
 import gz.radar.AndroidUI;
@@ -68,5 +64,5 @@ public abstract class HookerWebServer extends NanoHTTPD {
 	public void stop() {
 		super.stop();
 	}
-
+	
 }

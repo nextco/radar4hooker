@@ -14,15 +14,18 @@ import gz.httpserver.annotation.HookerRequestParam;
 import gz.httpserver.annotation.HookerRequestPostJson;
 import gz.util.Logger;
 
-public class MustangAutoJnjectionController extends MustangController {
+/**
+ * 一个MustangAutoJnjectionServlet对应一个Controller的一个方法
+ */
+public class MustangAutoWireServlet extends MustangServlet {
 	
-	private static Logger logger = new Logger(MustangAutoJnjectionController.class);
+	private static Logger logger = new Logger(MustangAutoWireServlet.class);
 
 	private Object target;
 
 	private Method targetMethod;
 
-	public MustangAutoJnjectionController(Object target, Method targetMethod, HookerController controllerDefinition, HookerRequestMapping requestMappingDefinition) {
+	public MustangAutoWireServlet(Object target, Method targetMethod, HookerController controllerDefinition, HookerRequestMapping requestMappingDefinition) {
 		super(controllerDefinition, requestMappingDefinition);
 		this.target = target;
 		this.targetMethod = targetMethod;
@@ -34,7 +37,7 @@ public class MustangAutoJnjectionController extends MustangController {
 		return targetMethod.invoke(target, args);
 	}
 	
-	private static Object[] buildMethodArgs(Method targetMethod, HookerWebRequest request) throws Exception {
+	private Object[] buildMethodArgs(Method targetMethod, HookerWebRequest request) throws Exception {
 		Parameter[] parameters = targetMethod.getParameters();
 		Object[] args = new Object[parameters.length];
 		for (int i = 0; i < parameters.length; i++) {
@@ -61,6 +64,8 @@ public class MustangAutoJnjectionController extends MustangController {
 				args[i] = MustangWebServer.getInstance();
 			}else if (parameterClass == HookerWebRequest.class) {
 				args[i] = request;
+			}else if (parameterClass == MustangServlet.class) {
+				args[i] = this;
 			}else {
 				args[i] = null;
 				logger.warn("parameter "+i+" have no annotations: " + targetMethod);

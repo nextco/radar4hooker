@@ -38,6 +38,11 @@ import gz.com.alibaba.fastjson.JSONObject;
 
 public class Android {
 	
+	/**
+	 * sdcard writie permit
+	 * @return
+	 * @throws Exception
+	 */
 	public static boolean hasSdcardWritePermit() throws Exception {
     	boolean hasPermission;
 		Context ctx = Android.getApplication();

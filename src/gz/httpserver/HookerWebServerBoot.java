@@ -22,7 +22,8 @@ import gz.httpserver.controller.BuiltinAppInfoController;
 import gz.httpserver.controller.BuiltinServiceController;
 import gz.httpserver.controller.BuiltinUIServiceController;
 import gz.httpserver.controller.BuiltinClassHelperController;
-import gz.httpserver.mustang.MustangAutoJnjectionController;
+import gz.httpserver.controller.BuiltinFileServiceController;
+import gz.httpserver.mustang.MustangAutoWireServlet;
 import gz.httpserver.mustang.MustangWebServer;
 import gz.radar.Android;
 import gz.radar.AndroidUI;
@@ -104,6 +105,7 @@ public class HookerWebServerBoot {
 		controllerClzList.add(BuiltinUIServiceController.class);
 		controllerClzList.add(BuiltinAppInfoController.class);
 		controllerClzList.add(BuiltinClassHelperController.class);
+		controllerClzList.add(BuiltinFileServiceController.class);
 		
 		for (Class<?> controllerClz : controllerClzList) {
 			Object target = controllerClz.getDeclaredConstructor().newInstance();
@@ -115,7 +117,7 @@ public class HookerWebServerBoot {
 					continue;
 				}
 				// 5️⃣ 注册路由
-				mustangHttpServer.addController(new MustangAutoJnjectionController(target, method, controller, mapping));
+				mustangHttpServer.addController(new MustangAutoWireServlet(target, method, controller, mapping));
 			}
 		}
 		mustangHttpServer.start();

@@ -1,10 +1,15 @@
 package gz.httpserver.mustang;
 
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
 import java.lang.reflect.Parameter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import android.util.Log;
 import gz.com.alibaba.fastjson.JSON;
 import gz.httpserver.HookerWebRequest;
 import gz.httpserver.HookerWebServer;
@@ -31,8 +36,8 @@ public class MustangWebServer extends HookerWebServer {
     	return mustangWebServer;
     }
     
-    public void addController(MustangController mustangController) {
-    	mustangControllerRouter.addMustangController(mustangController);
+    public void addController(MustangServlet mustangServlet) {
+    	mustangControllerRouter.addMustangController(mustangServlet);
     }
     
     private boolean isHtml(String text) {
@@ -42,7 +47,7 @@ public class MustangWebServer extends HookerWebServer {
     private boolean isJson(String text) {
         return text != null && text.trim().startsWith("{");
     }
-
+    
     
     @SuppressWarnings({ "static-access" })
 	@Override
@@ -51,9 +56,9 @@ public class MustangWebServer extends HookerWebServer {
     	FindResult findResult = mustangControllerRouter.findMustangController(request);
     	if (findResult.isSuccess()) {
     		try {
-    			MustangController mustangController = findResult.getController();
-        		Object result = mustangController.onResponse(request);
-        		Produces produces = mustangController.getProduces();
+    			MustangServlet mustangServlet = findResult.getServlet();
+        		Object result = mustangServlet.onResponse(request);
+        		Produces produces = mustangServlet.getProduces();
         		if (result == null) {
         			return newFixedLengthResponse("");
         		}

@@ -4,12 +4,12 @@ import gz.httpserver.HookerWebRequest;
 import gz.httpserver.annotation.HookerController;
 import gz.httpserver.annotation.HookerRequestMapping;
 
-public abstract class MustangTimerController extends MustangController {
+public abstract class MustangTimerServlet extends MustangServlet {
 	
 	private final long timeInterval;
     private volatile long lastResponseTime;
 
-    public MustangTimerController(HookerController controllerDefinition, HookerRequestMapping requestMappingDefinition, long timeInterval) {
+    public MustangTimerServlet(HookerController controllerDefinition, HookerRequestMapping requestMappingDefinition, long timeInterval) {
 		super(controllerDefinition, requestMappingDefinition);
 		this.timeInterval = timeInterval;
 	}

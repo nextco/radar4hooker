@@ -22,11 +22,11 @@ public class MustangControllerRouter {
 		public static final int RESULT_CONTROLLER_NOT_SUPPORT_POST = 3;
 		
 		private final int resultCode;
-		private final MustangController controller;
+		private final MustangServlet servlet;
 		
-		public FindResult(int resultCode, MustangController controller) {
+		public FindResult(int resultCode, MustangServlet controller) {
 			this.resultCode = resultCode;
-			this.controller = controller;
+			this.servlet = controller;
 		}
 		
 		public boolean isSuccess() {
@@ -45,15 +45,15 @@ public class MustangControllerRouter {
 			return this.resultCode == RESULT_CONTROLLER_NOT_SUPPORT_POST;
 		}
 		
-		public MustangController getController() {
-			return controller;
+		public MustangServlet getServlet() {
+			return servlet;
 		}
 		
 	}
 	
 	private String nodeName;
 	
-	private MustangController nodeController;
+	private MustangServlet nodeController;
 	
 	private Map<String, MustangControllerRouter> childRouters = new HashMap<String, MustangControllerRouter>();
 	
@@ -62,7 +62,7 @@ public class MustangControllerRouter {
 	}
     
     
-    public MustangControllerRouter(String nodeName, MustangController nodeController) {
+    public MustangControllerRouter(String nodeName, MustangServlet nodeController) {
 		this.nodeName = nodeName;
 		this.nodeController = nodeController;
 	}
@@ -70,11 +70,11 @@ public class MustangControllerRouter {
     /**
      * 注册一个 Controller 到 Router 树中
      */
-    public void addMustangController(MustangController mustangController) {
+    public void addMustangController(MustangServlet mustangServlet) {
         // 拼接完整路径
-        String fullPath = mustangController.getControllerDefinition().value()
+        String fullPath = mustangServlet.getControllerDefinition().value()
                 + "/" +
-                mustangController.getRequestMappingDefinition().path();
+                mustangServlet.getRequestMappingDefinition().path();
         String optimizedFullPath = fullPath.replaceAll("[/]+", "/");
         // 规范化 + 切分
         List<String> pathSegments = new ArrayList<String>();
@@ -95,14 +95,14 @@ public class MustangControllerRouter {
             current = next;
         }
         // 叶子节点绑定 Controller
-        current.nodeController = mustangController;
-        logger.info("Register route: " + optimizedFullPath + " -> Controller: " + mustangController.getTargetMethod());
+        current.nodeController = mustangServlet;
+        logger.info("Register route: " + optimizedFullPath + " -> Controller: " + mustangServlet.getTargetMethod());
     }
 
     /**
      * 根据请求路径查找处理 Controller
      */
-    private MustangController findMustangControllerWithPath(String path) {
+    private MustangServlet findMustangControllerWithPath(String path) {
         if (path == null && nodeName.equals("")) {
         	return nodeController;
         }
@@ -131,11 +131,11 @@ public class MustangControllerRouter {
     }
     
     public FindResult findMustangController(HookerWebRequest request) {
-    	MustangController mustangController = findMustangControllerWithPath(request.getUrlPath());
-    	if (mustangController == null) {
+    	MustangServlet mustangServlet = findMustangControllerWithPath(request.getUrlPath());
+    	if (mustangServlet == null) {
     		return new FindResult(FindResult.RESULT_FAILURE, null);
     	}
-    	HookerRequestMapping requestMappingDefinition = mustangController.getRequestMappingDefinition();
+    	HookerRequestMapping requestMappingDefinition = mustangServlet.getRequestMappingDefinition();
     	if (requestMappingDefinition.method() != request.getMethod()) {
     		if (request.isGet()) {
     			return new FindResult(FindResult.RESULT_CONTROLLER_NOT_SUPPORT_GET, null);
@@ -143,7 +143,7 @@ public class MustangControllerRouter {
     			return new FindResult(FindResult.RESULT_CONTROLLER_NOT_SUPPORT_POST, null);
     		}
     	}
-    	return new FindResult(FindResult.RESULT_SUCCESS, mustangController);
+    	return new FindResult(FindResult.RESULT_SUCCESS, mustangServlet);
     }
     
 }

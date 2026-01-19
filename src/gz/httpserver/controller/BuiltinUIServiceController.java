@@ -1,15 +1,22 @@
 package gz.httpserver.controller;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.UUID;
 
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.SystemClock;
@@ -44,7 +51,7 @@ import gz.util.XView;
 public class BuiltinUIServiceController {
 
 	private Logger logger = new Logger(BuiltinUIServiceController.class);
-
+	
 	@HookerRequestMapping(path = "finish_current_activity", produces = Produces.AUTO)
 	public String finish_current_activity() throws Exception {
 		AndroidUI.finishCurrentActivity();
@@ -187,6 +194,9 @@ public class BuiltinUIServiceController {
 		View rootView = activity.getWindow().getDecorView();
 		List<View> results = AndroidUI2.collectImportantViews(rootView);
 		for (View view : results) {
+			if (view.getVisibility() != View.VISIBLE) {
+				continue;
+			}
 			Map<String, Object> viewInfo = new HashMap<String, Object>();
 			viewInfo.put("is_focused", view.isFocused());
 			viewInfo.put("class", view.getClass().getName());
@@ -194,11 +204,10 @@ public class BuiltinUIServiceController {
 			if (view.getId() != View.NO_ID) {
 				String name = activity.getResources().getResourceEntryName(view.getId());
 				viewInfo.put("id", name);
-			} else {
-				String random3Letters = "hooker_" + random3Letters();
-				viewCache.put(random3Letters, new WeakReference<>(view));
-				viewInfo.put("id", random3Letters);
 			}
+			String random3Letters = "hooker_" + random3Letters();
+			viewCache.put(random3Letters, new WeakReference<>(view));
+			viewInfo.put("hooker_id", random3Letters);
 			TextView.OnClickListener onClickListener = xView.getOnClickListener();
 			if (onClickListener != null) {
 				viewInfo.put("on_click_listener_clazz", onClickListener.getClass().getName());
@@ -226,6 +235,21 @@ public class BuiltinUIServiceController {
 					viewInfo.put("on_focus_change_listener_clazz", onFocusChangeListener.getClass().getName());
 				}
 
+			}
+			if (view instanceof ImageView) {
+				ImageView imageView = (ImageView) view;
+				File tmpImageFile = new File(BuiltinFileServiceController.tempFileDir.getAbsolutePath()+ "/" + UUID.randomUUID().toString() + ".jpg");
+				if (saveImageButtonToFile(imageView, tmpImageFile)) {
+					viewInfo.put("imgae_url", "/file?filename="+tmpImageFile.getAbsolutePath());
+				}
+			}
+			
+			if (view instanceof ImageButton) {
+				ImageButton imageButton = (ImageButton) view;
+				
+				
+				viewInfo.put("image_button_content_description", imageButton.getContentDescription());
+				
 			}
 			views.add(viewInfo);
 		}
@@ -265,8 +289,7 @@ public class BuiltinUIServiceController {
 						imm.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT);
 						editText.onEditorAction(EditorInfo.IME_ACTION_SEARCH);
 					} catch (Exception e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
+						logger.warn(e);
 					}
 					
 				}
@@ -308,5 +331,40 @@ public class BuiltinUIServiceController {
 		}
 		return view;
 	}
+	
+	private static boolean saveImageButtonToFile(ImageView imageView, File outFile) throws Exception {
+	    Drawable drawable = imageView.getDrawable();
+	    if (drawable == null) {
+	        return false;
+	    }
+	    int w = drawable.getIntrinsicWidth();
+	    int h = drawable.getIntrinsicHeight();
+	    if (w >= 40 && h >= 40) {
+	    	Bitmap bitmap = drawableToBitmap(drawable);
+		    FileOutputStream fos = new FileOutputStream(outFile);
+		    bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos);
+		    fos.flush();
+		    fos.close();
+		    return true;
+	    }
+	    return false;
+	}
+	
+	public static Bitmap drawableToBitmap(Drawable drawable) {
+	    if (drawable instanceof BitmapDrawable) {
+	        return ((BitmapDrawable) drawable).getBitmap();
+	    }
+
+	    int width = drawable.getIntrinsicWidth() > 0 ? drawable.getIntrinsicWidth() : 1;
+	    int height = drawable.getIntrinsicHeight() > 0 ? drawable.getIntrinsicHeight() : 1;
+
+	    Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+	    Canvas canvas = new Canvas(bitmap);
+	    drawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
+	    drawable.draw(canvas);
+	    return bitmap;
+	}
+
+
 
 }

@@ -7,11 +7,11 @@ import gz.httpserver.annotation.HookerController;
 import gz.httpserver.annotation.HookerRequestMapping;
 import gz.util.XLog;
 
-public abstract class MustangAtomController extends MustangController {
+public abstract class MustangAtomServlet extends MustangServlet {
 	
 	private final ReentrantLock reentrantLock = new ReentrantLock(true);
 
-    public MustangAtomController(HookerController controllerDefinition, HookerRequestMapping requestMappingDefinition) {
+    public MustangAtomServlet(HookerController controllerDefinition, HookerRequestMapping requestMappingDefinition) {
 		super(controllerDefinition, requestMappingDefinition);
 	}
     
