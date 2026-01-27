@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.lang.reflect.Method;
+import java.util.Locale;
 
 import android.util.Log;
 import gz.httpserver.HookerWebRequest;
@@ -100,18 +101,47 @@ public abstract class MustangServlet {
 
     public Response newFileResponse(File file) {
         try {
-            String mime = NanoHTTPD.getMimeTypeForFile(file.getName());
+            String mime = getMimeTypeForFile(file.getName());
             FileInputStream fis = new FileInputStream(file);
-            return NanoHTTPD.newFixedLengthResponse(NanoHTTPD.Response.Status.OK, mime, fis, fis.available());
-//            return NanoHTTPD.newChunkedResponse(
-//                    NanoHTTPD.Response.Status.OK,
-//                    mime,
-//                    fis
-//            );
+            Response response = NanoHTTPD.newFixedLengthResponse(NanoHTTPD.Response.Status.OK, mime, fis, fis.available());
+            response.addHeader("Content-Type2", mime);
+            return response;
         } catch (Exception e) {
             return newErrorResponse(e);
         }
     }
+    
+    public static String getMimeTypeForFile(String fileName) {
+        if (fileName == null) {
+            return "application/octet-stream";
+        }
+        String name = fileName.toLowerCase(Locale.CHINA);
+        if (name.endsWith(".png"))  return "image/png";
+        if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return "image/jpeg";
+        if (name.endsWith(".gif"))  return "image/gif";
+        if (name.endsWith(".webp")) return "image/webp";
+        if (name.endsWith(".bmp"))  return "image/bmp";
+
+        if (name.endsWith(".txt"))  return "text/plain; charset=utf-8";
+        if (name.endsWith(".html") || name.endsWith(".htm")) return "text/html; charset=utf-8";
+        if (name.endsWith(".css"))  return "text/css; charset=utf-8";
+        if (name.endsWith(".js"))   return "application/javascript; charset=utf-8";
+        if (name.endsWith(".json")) return "application/json; charset=utf-8";
+        if (name.endsWith(".xml"))  return "application/xml; charset=utf-8";
+        if (name.endsWith(".mp4"))  return "video/mp4";
+        if (name.endsWith(".mp3"))  return "audio/mpeg";
+        if (name.endsWith(".wav"))  return "audio/wav";
+        if (name.endsWith(".ogg"))  return "audio/ogg";
+        if (name.endsWith(".pdf"))  return "application/pdf";
+        if (name.endsWith(".zip"))  return "application/zip";
+        if (name.endsWith(".rar"))  return "application/x-rar-compressed";
+        if (name.endsWith(".7z"))   return "application/x-7z-compressed";
+        if (name.endsWith(".apk"))  return "application/vnd.android.package-archive";
+        if (name.endsWith(".csv"))  return "text/csv; charset=utf-8";
+        // 兜底
+        return "application/octet-stream";
+    }
+
     
     public static void main(String[] args) {
 		System.out.println(NanoHTTPD.getMimeTypeForFile("d8f2a7.jpg"));

@@ -35,6 +35,7 @@ import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import androidx.fragment.app.Fragment;
+import gz.com.alibaba.fastjson.JSON;
 import gz.httpserver.annotation.HookerController;
 import gz.httpserver.annotation.HookerRequestMapping;
 import gz.httpserver.annotation.HookerRequestMapping.Method;
@@ -188,7 +189,8 @@ public class BuiltinUIServiceController {
 	}
 
 	@HookerRequestMapping(path = "lookup_important_views", produces = Produces.AUTO, method = Method.GET)
-	public List<Map<String, Object>> lookup_important_views() throws Exception {
+	public Object lookup_important_views(@HookerRequestParam(name = "format", defaultValue = "html") String format) throws Exception {
+		Map<String, Object> result = new HashMap<String, Object>();
 		List<Map<String, Object>> views = new ArrayList<Map<String, Object>>();
 		Activity activity = Android.getTopActivity();
 		View rootView = activity.getWindow().getDecorView();
@@ -240,20 +242,109 @@ public class BuiltinUIServiceController {
 				ImageView imageView = (ImageView) view;
 				File tmpImageFile = new File(BuiltinFileServiceController.tempFileDir.getAbsolutePath()+ "/" + UUID.randomUUID().toString() + ".jpg");
 				if (saveImageButtonToFile(imageView, tmpImageFile)) {
-					viewInfo.put("imgae_url", "/file?filename="+tmpImageFile.getAbsolutePath());
+					viewInfo.put("image_url", "/file?filename="+tmpImageFile.getAbsolutePath());
 				}
 			}
 			
 			if (view instanceof ImageButton) {
 				ImageButton imageButton = (ImageButton) view;
-				
-				
 				viewInfo.put("image_button_content_description", imageButton.getContentDescription());
-				
 			}
 			views.add(viewInfo);
 		}
-		return views;
+		if (format.equals("html")) {
+			//将views转成html
+			return renderViewsHtml(activity, views);
+		}else {
+			result.put("top_activity", activity.getClass().getName());
+			result.put("title", activity.getTitle());
+			result.put("views", views);
+			return result;
+		}
+	}
+	
+	private String renderViewsHtml(Activity activity, List<Map<String, Object>> views) {
+	    StringBuilder sb = new StringBuilder();
+	    sb.append("<html><head><meta charset='utf-8'/>")
+	      .append("<style>")
+	      .append("body{font-family:monospace;padding:12px}")
+	      .append(".row{padding:8px 6px;border-bottom:1px solid #ddd;display:flex;gap:10px;align-items:flex-start}")
+	      .append(".img{width:64px;height:64px;object-fit:contain;border:1px solid #ccc;border-radius:6px;background:#fafafa}")
+	      .append(".kv{white-space:pre-wrap;word-break:break-word}")
+	      .append(".tag{display:inline-block;padding:1px 6px;border:1px solid #bbb;border-radius:10px;margin-right:6px;font-size:12px}")
+	      .append(".json{white-space:pre-wrap;word-break:break-word;font-size:12px;opacity:0.9;border:1px dashed #ccc;padding:6px;border-radius:6px;max-width:520px}")
+	      .append("</style></head><body>");
+
+	    sb.append("<h3>TopActivity: ")
+	      .append(escapeHtml(activity.getClass().getName()))
+	      .append(" | Title: ")
+	      .append(escapeHtml(String.valueOf(activity.getTitle())))
+	      .append(" | Views: ")
+	      .append(views.size())
+	      .append("</h3>");
+
+	    for (Map<String, Object> v : views) {
+	        String clazz = asString(v.get("class"));
+	        String id = asString(v.get("id"));
+	        String hookerId = asString(v.get("hooker_id"));
+	        String text = asString(v.get("text"));
+	        String hint = asString(v.get("hint_text"));
+	        String focused = String.valueOf(v.get("is_focused"));
+
+	        String clickL = asString(v.get("on_click_listener_clazz"));
+	        String longClickL = asString(v.get("on_long_click_listener_clazz"));
+	        String editorL = asString(v.get("on_editor_action_listener_clazz"));
+	        String focusL = asString(v.get("on_focus_change_listener_clazz"));
+	        String cd = asString(v.get("image_button_content_description"));
+	        String imageUrl = asString(v.get("image_url"));
+
+	        sb.append("<div class='row'>");
+
+	        // JSON 展示（一定要转义）
+	        String jsonText = JSON.toJSONString(v);
+	        sb.append("<pre class='json'>").append(escapeHtml(jsonText)).append("</pre>");
+	        
+	        // 图片展示（用统一 img 样式类）
+	        if (imageUrl != null && !imageUrl.isEmpty()) {
+	            sb.append("<a href='").append(escapeHtml(imageUrl)).append("' target='_blank'>")
+	              .append("<img class='img' src='").append(escapeHtml(imageUrl)).append("'/></a>");
+	        } else {
+	            sb.append("<div class='img'></div>");
+	        }
+
+	        sb.append("<div class='kv'>")
+	          .append("<span class='tag'>focused=").append(escapeHtml(focused)).append("</span>")
+	          .append("<span class='tag'>hooker_id=").append(escapeHtml(hookerId)).append("</span>")
+	          .append("<div><b>class</b>: ").append(escapeHtml(clazz)).append("</div>");
+
+	        if (id != null && !id.isEmpty()) sb.append("<div><b>id</b>: ").append(escapeHtml(id)).append("</div>");
+	        if (text != null && !text.isEmpty()) sb.append("<div><b>text</b>: ").append(escapeHtml(text)).append("</div>");
+	        if (hint != null && !hint.isEmpty()) sb.append("<div><b>hint</b>: ").append(escapeHtml(hint)).append("</div>");
+	        if (cd != null && !cd.isEmpty()) sb.append("<div><b>contentDesc</b>: ").append(escapeHtml(cd)).append("</div>");
+
+	        if (clickL != null && !clickL.isEmpty()) sb.append("<div><b>onClick</b>: ").append(escapeHtml(clickL)).append("</div>");
+	        if (longClickL != null && !longClickL.isEmpty()) sb.append("<div><b>onLongClick</b>: ").append(escapeHtml(longClickL)).append("</div>");
+	        if (editorL != null && !editorL.isEmpty()) sb.append("<div><b>onEditorAction</b>: ").append(escapeHtml(editorL)).append("</div>");
+	        if (focusL != null && !focusL.isEmpty()) sb.append("<div><b>onFocusChange</b>: ").append(escapeHtml(focusL)).append("</div>");
+
+	        sb.append("</div></div>");
+	    }
+
+	    sb.append("</body></html>");
+	    return sb.toString();
+	}
+
+	private String asString(Object o) {
+	    return o == null ? "" : String.valueOf(o);
+	}
+
+	private String escapeHtml(String s) {
+	    if (s == null) return "";
+	    return s.replace("&", "&amp;")
+	            .replace("<", "&lt;")
+	            .replace(">", "&gt;")
+	            .replace("\"", "&quot;")
+	            .replace("'", "&#39;");
 	}
 
 	@HookerRequestMapping(path = "set_text", produces = Produces.AUTO, method = Method.GET)
