@@ -22,6 +22,7 @@ import android.os.Bundle;
 import android.os.SystemClock;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.FragmentManager;
+import android.support.v4.view.ViewPager;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -35,6 +36,7 @@ import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import androidx.fragment.app.Fragment;
+import androidx.viewpager.widget.PagerAdapter;
 import gz.com.alibaba.fastjson.JSON;
 import gz.httpserver.annotation.HookerController;
 import gz.httpserver.annotation.HookerRequestMapping;
@@ -83,23 +85,40 @@ public class BuiltinUIServiceController {
 	public String click_by_id(@HookerRequestParam(name = "id") String id) throws Exception {
 		View view = findViewById(id);
 		logger.info("view: " + view.getClass().getName());
-		if (view != null && view.isClickable()) {
-			final View clickableView = view;
-			Runnable runnable = new Runnable() {
-				@Override
-				public void run() {
-					clickableView.performClick();
-				}
-			};
-			logger.info("click_by_id: " + id);
-			clickableView.post(runnable);
-		}
+		AndroidUI.performClick(view);
 		return "ok";
 	}
 
 	@HookerRequestMapping(path = "show_toast", produces = Produces.AUTO)
 	public String show_toast(@HookerRequestParam(name = "text", defaultValue = "牛逼不？") String text) throws Exception {
 		AndroidUI.showToast(text);
+		return "ok";
+	}
+	
+	@HookerRequestMapping(path = "view_page_swipe", produces = Produces.AUTO)
+	public String viewPageSwipe(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "direction", defaultValue = "next") String direction) throws Exception {
+		View view = findViewById(id);
+		if (Class.forName("androidx.viewpager.widget.ViewPager").isInstance(view)) {
+			androidx.viewpager.widget.ViewPager viewPager = (androidx.viewpager.widget.ViewPager) view;
+			if (direction.equals("next")) {
+				AndroidUI.swipeToNext(viewPager);
+			}else {
+				AndroidUI.swipeToPrev(viewPager);
+			}
+		}else if (Class.forName("androidx.viewpager2.widget.ViewPager2").isInstance(view)) {
+			androidx.viewpager2.widget.ViewPager2 viewPager = (androidx.viewpager2.widget.ViewPager2) view;
+			viewPager.post(new Runnable() {
+				@Override
+				public void run() {
+					int cur = viewPager.getCurrentItem();
+					if (direction.equals("next")) {
+						viewPager.setCurrentItem(cur - 1, true);
+					}else {
+						viewPager.setCurrentItem(cur + 1, true);
+					}
+				}
+			});
+		}
 		return "ok";
 	}
 
@@ -196,9 +215,6 @@ public class BuiltinUIServiceController {
 		View rootView = activity.getWindow().getDecorView();
 		List<View> results = AndroidUI2.collectImportantViews(rootView);
 		for (View view : results) {
-			if (view.getVisibility() != View.VISIBLE) {
-				continue;
-			}
 			Map<String, Object> viewInfo = new HashMap<String, Object>();
 			viewInfo.put("is_focused", view.isFocused());
 			viewInfo.put("class", view.getClass().getName());
@@ -250,6 +266,24 @@ public class BuiltinUIServiceController {
 				ImageButton imageButton = (ImageButton) view;
 				viewInfo.put("image_button_content_description", imageButton.getContentDescription());
 			}
+			
+			if (Class.forName("androidx.viewpager.widget.ViewPager").isInstance(view)) {
+				androidx.viewpager.widget.ViewPager viewPager = (androidx.viewpager.widget.ViewPager) view;
+				viewInfo.put("view_page_current_item", viewPager.getCurrentItem());
+				viewInfo.put("view_page_is_enabled", viewPager.isEnabled());
+				viewInfo.put("view_page_super_class", "androidx.viewpager.widget.ViewPager");
+				PagerAdapter adapter = viewPager.getAdapter();
+				int count = adapter != null ? adapter.getCount() : 0;
+				viewInfo.put("view_page_count", count);
+			}
+			
+			if (Class.forName("androidx.viewpager2.widget.ViewPager2").isInstance(view)) {
+				androidx.viewpager2.widget.ViewPager2 viewPager = (androidx.viewpager2.widget.ViewPager2) view;
+				viewInfo.put("view_page_current_item", viewPager.getCurrentItem());
+				viewInfo.put("view_page_is_enabled", viewPager.isEnabled());
+				viewInfo.put("view_page_super_class", "androidx.viewpager2.widget.ViewPager2");
+			}
+			
 			views.add(viewInfo);
 		}
 		if (format.equals("html")) {

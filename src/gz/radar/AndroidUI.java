@@ -22,6 +22,8 @@ import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
+import androidx.viewpager.widget.PagerAdapter;
+import androidx.viewpager.widget.ViewPager;
 
 import java.io.StringReader;
 import java.io.StringWriter;
@@ -95,6 +97,39 @@ public class AndroidUI {
        }
         keepScreenOnThread.start();
     }
+    
+    public static void swipeToNext(ViewPager vp) {
+    	vp.post(new Runnable() {
+			
+			@Override
+			public void run() {
+				int cur = vp.getCurrentItem();
+		        PagerAdapter adapter = vp.getAdapter();
+		        if (adapter == null) return ;
+
+		        int count = adapter.getCount();
+		        if (cur + 1 < count) {
+		            vp.setCurrentItem(cur + 1, true);
+		            return;
+		        }
+			}
+		});
+        
+    }
+
+    public static void swipeToPrev(ViewPager vp) {
+    	vp.post(new Runnable() {
+			
+			@Override
+			public void run() {
+				int cur = vp.getCurrentItem();
+		        if (cur > 0) {
+		            vp.setCurrentItem(cur - 1, true);
+		        }
+			}
+		});
+    }
+    
 
 
     /**
@@ -185,18 +220,7 @@ public class AndroidUI {
 
     public static boolean clickById(int id) throws Exception {
         View view = findViewById(id);
-        if (view.isClickable()) {
-            final View clickableView = view;
-            Runnable runnable = new Runnable() {
-                @Override
-                public void run() {
-                    clickableView.performClick();
-                }
-            };
-            clickableView.post(runnable);
-            return true;
-        }
-        return false;
+        return performClick(view);
     }
 
     public static void search() throws Exception {
@@ -445,26 +469,30 @@ public class AndroidUI {
         }
         View decorView = activity.getWindow().getDecorView();
         View view = findViewByText(decorView, text, mustBeTextEqueal, mustBeVisible);
-        if (view  != null) {
-            while (true) {
-                if (view.isClickable()) {
-                    final View clickableView = view;
-                    Runnable runnable = new Runnable() {
-                        @Override
-                        public void run() {
-                            clickableView.performClick();
-                        }
-                    };
-                    clickableView.post(runnable);
-                    return true;
-                }
-                view = (View) view.getParent();
-                if (view == null) {
-                    break;
-                }
-            }
-        }
-        return false;
+        return performClick(view);
+    }
+    
+    public static boolean performClick(View view) {
+    	 if (view  != null) {
+             while (true) {
+                 if (view.isClickable()) {
+                     final View clickableView = view;
+                     Runnable runnable = new Runnable() {
+                         @Override
+                         public void run() {
+                             clickableView.performClick();
+                         }
+                     };
+                     clickableView.post(runnable);
+                     return true;
+                 }
+                 view = (View) view.getParent();
+                 if (view == null) {
+                     break;
+                 }
+             }
+         }
+    	 return false;
     }
 
     public static <T extends View> T findViewByText(View decorView, String text) {

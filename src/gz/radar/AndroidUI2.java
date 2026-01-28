@@ -6,14 +6,26 @@ import java.util.ArrayList;
 import java.util.List;
 
 import android.app.Activity;
+import android.view.SurfaceView;
+import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.EditText;
+import android.widget.GridView;
+import android.widget.HorizontalScrollView;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.ListView;
+import android.widget.ProgressBar;
+import android.widget.RadioButton;
+import android.widget.RatingBar;
+import android.widget.ScrollView;
 import android.widget.SeekBar;
 import android.widget.TextView;
+import android.widget.ToggleButton;
+import android.widget.VideoView;
 import gz.util.Logger;
 
 public class AndroidUI2 {
@@ -31,15 +43,11 @@ public class AndroidUI2 {
 			return;
 		if (v.getVisibility() != View.VISIBLE)
 			return;
-		// ===== 重要控件判定 =====
-		if (v instanceof Button || v instanceof TextView || v instanceof ImageView || v instanceof ImageButton
-				|| v instanceof CheckBox || v instanceof SeekBar || isSwitch(v) || isViewPager(v) || isRecyclerView(v)
-				|| isWebView(v)) {
+		
+		if (isImportantView(v)) {
+	        out.add(v);
+	    }
 
-			out.add(v);
-		}
-
-		// ===== 继续递归子 View =====
 		if (v instanceof ViewGroup) {
 			ViewGroup group = (ViewGroup) v;
 			for (int i = 0; i < group.getChildCount(); i++) {
@@ -47,8 +55,53 @@ public class AndroidUI2 {
 			}
 		}
 	}
+	
+	private static boolean isImportantView(View v) {
+	    return v instanceof Button
+	            || v instanceof TextView
+	            || v instanceof EditText
+	            || v instanceof ImageView
+	            || v instanceof ImageButton
+	            || v instanceof CheckBox
+	            || v instanceof RadioButton
+	            || v instanceof ToggleButton
+	            || v instanceof SeekBar
+	            || v instanceof ProgressBar
+	            || v instanceof RatingBar
+	            || isSwitch(v)
+	            || isViewPager(v)
+	            || isRecyclerView(v)
+	            || v instanceof ListView
+	            || v instanceof GridView
+	            || v instanceof ScrollView
+	            || v instanceof HorizontalScrollView
+	            || isWebView(v)
+	            || isMaterialView(v)
+	            || isToolbar(v)
+	            || v instanceof VideoView
+	            || v instanceof SurfaceView
+	            || v instanceof TextureView;
+	}
+	
+	private static boolean isInstanceOf(View v, String clz) {
+	    try {
+	        return Class.forName(clz).isInstance(v);
+	    } catch (Throwable e) {
+	        return false;
+	    }
+	}
 
-	private static boolean isSwitch(View v) {
+	public static boolean isMaterialView(View v) {
+	    return isInstanceOf(v, "com.google.android.material.tabs.TabLayout")
+	        || isInstanceOf(v, "com.google.android.material.bottomnavigation.BottomNavigationView")
+	        || isInstanceOf(v, "com.google.android.material.floatingactionbutton.FloatingActionButton");
+	}
+
+	public static boolean isToolbar(View v) {
+	    return isInstanceOf(v, "androidx.appcompat.widget.Toolbar");
+	}
+
+	public static boolean isSwitch(View v) {
 		try {
 			if (v instanceof android.widget.Switch)
 				return true;
@@ -58,7 +111,7 @@ public class AndroidUI2 {
 		return false;
 	}
 
-	private static boolean isViewPager(View v) {
+	public static boolean isViewPager(View v) {
 		try {
 			return Class.forName("androidx.viewpager.widget.ViewPager").isInstance(v)
 					|| Class.forName("androidx.viewpager2.widget.ViewPager2").isInstance(v);
@@ -67,7 +120,7 @@ public class AndroidUI2 {
 		return false;
 	}
 
-	private static boolean isRecyclerView(View v) {
+	public static boolean isRecyclerView(View v) {
 		try {
 			return Class.forName("androidx.recyclerview.widget.RecyclerView").isInstance(v);
 		} catch (Throwable ignore) {
@@ -75,7 +128,7 @@ public class AndroidUI2 {
 		return false;
 	}
 
-	private static boolean isWebView(View v) {
+	public static boolean isWebView(View v) {
 		if (v instanceof android.webkit.WebView)
 			return true;
 
@@ -206,7 +259,6 @@ public class AndroidUI2 {
 	}
 
 
-
 	// 原生 DialogFragment
 	public static boolean dismissPlatformDialogFragment(Activity a) {
 		try {
@@ -229,5 +281,6 @@ public class AndroidUI2 {
 		}
 		return false;
 	}
+	
 
 }
