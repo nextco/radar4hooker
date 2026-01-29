@@ -171,6 +171,42 @@ public class AndroidUI {
 		});
     }
     
+    public static void scrollBy(androidx.recyclerview.widget.RecyclerView rv, int x, int y) {
+    	if (rv.getVisibility() == View.VISIBLE) {
+    		rv.post(new Runnable() {
+				
+				@Override
+				public void run() {
+					rv.scrollBy(x, y);
+				}
+			});
+    	}
+    }
+    
+    public static void scrollToPosition(androidx.recyclerview.widget.RecyclerView rv, int position) {
+    	if (rv.getVisibility() == View.VISIBLE) {
+    		rv.post(new Runnable() {
+				
+				@Override
+				public void run() {
+					rv.scrollToPosition(position);
+				}
+			});
+    	}
+    }
+    
+    public static void smoothScrollToPosition(androidx.recyclerview.widget.RecyclerView rv, int position) {
+    	if (rv.getVisibility() == View.VISIBLE) {
+    		rv.post(new Runnable() {
+				
+				@Override
+				public void run() {
+					rv.smoothScrollToPosition(position);
+				}
+			});
+    	}
+    }
+    
     public static View getRootViewGroup() throws Exception {
     	return Android.getTopActivity().getWindow().getDecorView();
     }

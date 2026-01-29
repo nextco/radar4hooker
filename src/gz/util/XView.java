@@ -5,6 +5,8 @@ import android.widget.AbsListView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.AdapterView.OnItemLongClickListener;
 import android.widget.AdapterView.OnItemSelectedListener;
+import android.widget.CompoundButton;
+import android.widget.RadioGroup;
 import android.widget.TextView;
 
 public class XView {
@@ -34,6 +36,16 @@ public class XView {
 		return null;
 	}
 	
+	public CompoundButton.OnCheckedChangeListener getOnCheckedChangeListener() {
+		if (!(view instanceof CompoundButton)) return null;
+		try {
+			return X.getField(view, "mOnCheckedChangeListener");
+		}catch(Exception e) {
+			XLog.appendText(e);
+		}
+		return null;
+	}
+	
 	public View.OnLongClickListener getOnLongClickListener() {
 		try {
 			Object listenerInfo = getListenerInfo();
@@ -53,6 +65,7 @@ public class XView {
 		}
 		return null;
 	}
+	
 	
 	public View.OnFocusChangeListener getOnFocusChangeListener() {
 		try {

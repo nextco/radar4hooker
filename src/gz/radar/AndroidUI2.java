@@ -70,6 +70,7 @@ public class AndroidUI2 {
 	            || v instanceof RatingBar
 	            || isSwitch(v)
 	            || isViewPager(v)
+	            || isViewPager2(v)
 	            || isRecyclerView(v)
 	            || v instanceof ListView
 	            || v instanceof GridView
@@ -113,8 +114,15 @@ public class AndroidUI2 {
 
 	public static boolean isViewPager(View v) {
 		try {
-			return Class.forName("androidx.viewpager.widget.ViewPager").isInstance(v)
-					|| Class.forName("androidx.viewpager2.widget.ViewPager2").isInstance(v);
+			return Class.forName("androidx.viewpager.widget.ViewPager").isInstance(v);
+		} catch (Throwable ignore) {
+		}
+		return false;
+	}
+	
+	public static boolean isViewPager2(View v) {
+		try {
+			return Class.forName("androidx.viewpager2.widget.ViewPager2").isInstance(v);
 		} catch (Throwable ignore) {
 		}
 		return false;

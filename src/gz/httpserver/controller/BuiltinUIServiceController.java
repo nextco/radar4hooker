@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,12 +31,18 @@ import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.RadioButton;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.GridLayoutManager;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+import androidx.recyclerview.widget.StaggeredGridLayoutManager;
 import androidx.viewpager.widget.PagerAdapter;
 import gz.com.alibaba.fastjson.JSON;
 import gz.httpserver.annotation.HookerController;
@@ -201,9 +208,34 @@ public class BuiltinUIServiceController {
 		return "ok";
 	}
 
-	@HookerRequestMapping(path = "try_dismiss_by_dialog_fragment", produces = Produces.AUTO)
+	@HookerRequestMapping(path = "try_to_dismiss_dialog", produces = Produces.AUTO)
 	public String tryDismissByDialogFragment() throws Exception {
 		AndroidUI2.tryDismissByDialogFragment();
+		return "ok";
+	}
+	
+	@HookerRequestMapping(path = "rv_scroll_by", produces = Produces.AUTO)
+	public String rvscrollBy(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "x") Integer x, @HookerRequestParam(name = "y") Integer y)
+			throws Exception {
+		androidx.recyclerview.widget.RecyclerView rv = (RecyclerView) findViewById(id);
+		AndroidUI.scrollBy(rv, x, y);
+		return "ok";
+	}
+	
+	@HookerRequestMapping(path = "rv_scroll_to_position", produces = Produces.AUTO)
+	public String rvscrollToPosition(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "position", defaultValue = "0") Integer position)
+			throws Exception {
+		androidx.recyclerview.widget.RecyclerView rv = (RecyclerView) findViewById(id);
+		AndroidUI.scrollToPosition(rv, position);
+		return "ok";
+	}
+	
+	
+	@HookerRequestMapping(path = "rv_smooth_scroll_to_position", produces = Produces.AUTO)
+	public String rvsmoothScrollToPosition(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "position", defaultValue = "0") Integer position)
+			throws Exception {
+		androidx.recyclerview.widget.RecyclerView rv = (RecyclerView) findViewById(id);
+		AndroidUI.smoothScrollToPosition(rv, position);
 		return "ok";
 	}
 
@@ -267,7 +299,7 @@ public class BuiltinUIServiceController {
 				viewInfo.put("image_button_content_description", imageButton.getContentDescription());
 			}
 			
-			if (Class.forName("androidx.viewpager.widget.ViewPager").isInstance(view)) {
+			if (AndroidUI2.isViewPager(view)) {
 				androidx.viewpager.widget.ViewPager viewPager = (androidx.viewpager.widget.ViewPager) view;
 				viewInfo.put("view_page_current_item", viewPager.getCurrentItem());
 				viewInfo.put("view_page_is_enabled", viewPager.isEnabled());
@@ -277,11 +309,90 @@ public class BuiltinUIServiceController {
 				viewInfo.put("view_page_count", count);
 			}
 			
-			if (Class.forName("androidx.viewpager2.widget.ViewPager2").isInstance(view)) {
+			if (AndroidUI2.isViewPager2(view)) {
 				androidx.viewpager2.widget.ViewPager2 viewPager = (androidx.viewpager2.widget.ViewPager2) view;
 				viewInfo.put("view_page_current_item", viewPager.getCurrentItem());
 				viewInfo.put("view_page_is_enabled", viewPager.isEnabled());
 				viewInfo.put("view_page_super_class", "androidx.viewpager2.widget.ViewPager2");
+			}
+			
+			if (AndroidUI2.isRecyclerView(view)) {
+				androidx.recyclerview.widget.RecyclerView rv = (androidx.recyclerview.widget.RecyclerView) view;
+				RecyclerView.Adapter adapter = rv.getAdapter();
+				if (adapter != null) {
+				    String adapterClass = adapter.getClass().getName();
+				    int itemCount = adapter.getItemCount();
+
+				    // 非常重要的信息
+				    viewInfo.put("adapter_class", adapterClass);
+				    viewInfo.put("item_count", itemCount);
+				}
+				int childCount = rv.getChildCount();
+				viewInfo.put("visible_child_count", childCount);
+				
+				RecyclerView.LayoutManager lm = rv.getLayoutManager();
+				if (lm != null) {
+				    String lmClass = lm.getClass().getName();
+				    viewInfo.put("layout_manager", lmClass);
+
+				    if (lm instanceof LinearLayoutManager) {
+				        LinearLayoutManager llm = (LinearLayoutManager) lm;
+				        viewInfo.put("orientation",
+				                llm.getOrientation() == LinearLayoutManager.VERTICAL ? "vertical" : "horizontal");
+				        viewInfo.put("first_visible_position", llm.findFirstVisibleItemPosition());
+				        viewInfo.put("last_visible_position", llm.findLastVisibleItemPosition());
+				    } else if (lm instanceof GridLayoutManager) {
+				        GridLayoutManager glm = (GridLayoutManager) lm;
+				        viewInfo.put("span_count", glm.getSpanCount());
+				        viewInfo.put("first_visible_position", glm.findFirstVisibleItemPosition());
+				        viewInfo.put("last_visible_position", glm.findLastVisibleItemPosition());
+				    } else if (lm instanceof StaggeredGridLayoutManager) {
+				        StaggeredGridLayoutManager sgm = (StaggeredGridLayoutManager) lm;
+				        int[] first = sgm.findFirstVisibleItemPositions(null);
+				        int[] last = sgm.findLastVisibleItemPositions(null);
+				        viewInfo.put("first_visible_positions", Arrays.toString(first));
+				        viewInfo.put("last_visible_positions", Arrays.toString(last));
+				    }
+				}
+
+			}
+			
+			if (view instanceof CheckBox) {
+				CheckBox checkBox = (CheckBox) view;
+				// 1. 状态信息
+			    boolean isChecked = checkBox.isChecked();
+			    boolean isEnabled = checkBox.isEnabled();
+			    boolean isClickable = checkBox.isClickable();
+
+			    viewInfo.put("type", "CheckBox");
+			    viewInfo.put("checked", isChecked);
+			    viewInfo.put("enabled", isEnabled);
+			    viewInfo.put("clickable", isClickable);
+
+			    // 2. 文本信息（很多 CheckBox 都有文字）
+			    CharSequence text = checkBox.getText();
+			    if (text != null) {
+			        viewInfo.put("text", text.toString());
+			    }
+
+			    // 3. contentDescription（有些 App 靠这个表达语义）
+			    CharSequence cd = checkBox.getContentDescription();
+			    if (cd != null) {
+			        viewInfo.put("content_description", cd.toString());
+			    }
+
+			    // 4. 是否有监听器（逆向时非常重要）
+
+			    CompoundButton.OnCheckedChangeListener onCheckedChangeListener =
+			            xView.getOnCheckedChangeListener();
+			    if (onCheckedChangeListener != null) {
+			        viewInfo.put("on_checked_change_listener_clazz",
+			                onCheckedChangeListener.getClass().getName());
+			    }
+			}
+			
+			if (view instanceof RadioButton) {
+				
 			}
 			
 			views.add(viewInfo);
