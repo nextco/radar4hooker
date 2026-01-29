@@ -1,5 +1,7 @@
 package gz.util;
 
+import java.lang.reflect.Field;
+
 import android.view.View;
 import android.widget.AbsListView;
 import android.widget.AdapterView.OnItemClickListener;
@@ -7,6 +9,7 @@ import android.widget.AdapterView.OnItemLongClickListener;
 import android.widget.AdapterView.OnItemSelectedListener;
 import android.widget.CompoundButton;
 import android.widget.RadioGroup;
+import android.widget.SeekBar;
 import android.widget.TextView;
 
 public class XView {
@@ -35,6 +38,16 @@ public class XView {
 		}
 		return null;
 	}
+	
+	public SeekBar.OnSeekBarChangeListener getSeekBarListener() {
+	    try {
+	        return X.getField(view, "mOnSeekBarChangeListener");
+	    } catch (Exception e) {
+	        e.printStackTrace();
+	    }
+	    return null;
+	}
+
 	
 	public CompoundButton.OnCheckedChangeListener getOnCheckedChangeListener() {
 		if (!(view instanceof CompoundButton)) return null;

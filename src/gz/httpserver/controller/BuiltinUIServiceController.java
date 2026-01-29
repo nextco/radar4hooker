@@ -27,6 +27,7 @@ import android.support.v4.view.ViewPager;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewParent;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
@@ -36,8 +37,11 @@ import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.RadioButton;
+import android.widget.RadioGroup;
 import android.widget.SeekBar;
+import android.widget.SeekBar.OnSeekBarChangeListener;
 import android.widget.TextView;
+import android.widget.ToggleButton;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -238,6 +242,35 @@ public class BuiltinUIServiceController {
 		AndroidUI.smoothScrollToPosition(rv, position);
 		return "ok";
 	}
+	
+	@HookerRequestMapping(path = "set_checked", produces = Produces.AUTO)
+	public String set_checked(@HookerRequestParam(name = "id") String id)
+			throws Exception {
+		ToggleButton tb  = (ToggleButton) findViewById(id);
+		tb.post(new Runnable() {
+			
+			@Override
+			public void run() {
+				boolean checked = tb.isChecked();
+				tb.setChecked(!checked);
+			}
+		});
+		return "ok";
+	}
+	
+	@HookerRequestMapping(path = "set_progress", produces = Produces.AUTO)
+	public String set_progress(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "progress", defaultValue = "0") Integer progress)
+			throws Exception {
+		SeekBar seekbar  = (SeekBar) findViewById(id);
+		seekbar.post(new Runnable() {
+			
+			@Override
+			public void run() {
+				seekbar.setProgress(progress);
+			}
+		});
+		return "ok";
+	}
 
 	@HookerRequestMapping(path = "lookup_important_views", produces = Produces.AUTO, method = Method.GET)
 	public Object lookup_important_views(@HookerRequestParam(name = "format", defaultValue = "html") String format) throws Exception {
@@ -392,7 +425,82 @@ public class BuiltinUIServiceController {
 			}
 			
 			if (view instanceof RadioButton) {
-				
+				RadioButton rb = (RadioButton) view;
+
+			    viewInfo.put("type", "RadioButton");
+			    viewInfo.put("checked", rb.isChecked());
+			    viewInfo.put("enabled", rb.isEnabled());
+			    viewInfo.put("clickable", rb.isClickable());
+
+			    // 文本
+			    CharSequence text = rb.getText();
+			    if (text != null) {
+			        viewInfo.put("text", text.toString());
+			    }
+
+			    // 语义描述
+			    CharSequence cd = rb.getContentDescription();
+			    if (cd != null) {
+			        viewInfo.put("content_description", cd.toString());
+			    }
+
+			    // RadioGroup 信息（非常重要）
+			    ViewParent parent = rb.getParent();
+			    if (parent instanceof RadioGroup) {
+			        RadioGroup group = (RadioGroup) parent;
+			        viewInfo.put("radio_group_id", group.getId());
+			        viewInfo.put("radio_group_class", group.getClass().getName());
+
+			        // 当前组中选中的 RadioButton
+			        int checkedId = group.getCheckedRadioButtonId();
+			        viewInfo.put("radio_group_checked_id", checkedId);
+
+			        // 组内 RadioButton 数量
+			        int count = group.getChildCount();
+			        viewInfo.put("radio_group_child_count", count);
+			    }
+
+			    CompoundButton.OnCheckedChangeListener checkedListener =
+			            xView.getOnCheckedChangeListener();
+			    if (checkedListener != null) {
+			        viewInfo.put("on_checked_change_listener_clazz",
+			                checkedListener.getClass().getName());
+			    }
+			}
+			
+			if (view instanceof ToggleButton) {
+				ToggleButton toggleButton = (ToggleButton) view;
+				 // 当前状态
+			    boolean checked = toggleButton.isChecked();
+			    viewInfo.put("checked", checked);
+			    // 文本
+			    CharSequence textOn = toggleButton.getTextOn();
+			    viewInfo.put("textOn", textOn);
+			    CharSequence textOff = toggleButton.getTextOff();
+			    viewInfo.put("textOff", textOff);
+			    CharSequence currentText = toggleButton.getText();
+			    viewInfo.put("currentText", currentText);
+			    CompoundButton.OnCheckedChangeListener checkedListener =
+			            xView.getOnCheckedChangeListener();
+			    if (checkedListener != null) {
+			        viewInfo.put("on_checked_change_listener_clazz",
+			                checkedListener.getClass().getName());
+			    }
+			}
+			
+			if (view instanceof SeekBar) {
+				SeekBar seekBar = (SeekBar) view;
+				int progress = seekBar.getProgress();     // 当前值
+			    int max = seekBar.getMax();               // 最大值
+			    int min = 0;                              // 老版本 Android 默认是 0
+			    viewInfo.put("seek_bar_progress", progress);
+			    viewInfo.put("seek_bar_max", max);
+			    viewInfo.put("seek_bar_min", min);
+			    OnSeekBarChangeListener onSeekBarChangeListener = xView.getSeekBarListener();
+			    if (onSeekBarChangeListener != null) {
+			    	viewInfo.put("on_seek_bar_change_listener_clazz",
+			    			onSeekBarChangeListener.getClass().getName());
+			    }
 			}
 			
 			views.add(viewInfo);
