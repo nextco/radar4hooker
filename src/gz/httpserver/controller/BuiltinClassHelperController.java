@@ -9,6 +9,7 @@ import gz.httpserver.annotation.HookerController;
 import gz.httpserver.annotation.HookerRequestMapping;
 import gz.httpserver.annotation.HookerRequestMapping.Produces;
 import gz.httpserver.annotation.HookerRequestPostJson;
+import gz.radar.objects.ObjectsStore;
 import gz.util.Logger;
 import gz.util.XLog;
 
@@ -45,6 +46,46 @@ public class BuiltinClassHelperController {
 	        Method method = targetClass.getDeclaredMethod(methodName, argTypes);
 	        method.setAccessible(true);
 	        Object returnValue = method.invoke(null, args);
+	        result.put("success", true);
+	        result.put("return_value", returnValue);
+	        result.put("return_type", returnValue == null ? "void/null" : returnValue.getClass().getName());
+	    } catch (Exception e) {
+	        result.put("success", false);
+	        result.put("exception", e.toString());
+	        result.put("stacktrace", XLog.getException(e));
+	    }
+	    return result;
+	}
+	
+	@HookerRequestMapping(path="invoke_method", produces = Produces.AUTO, method = gz.httpserver.annotation.HookerRequestMapping.Method.POST)
+	public Map<String, Object> invoke_method(@HookerRequestPostJson Map<String, Object> class_info) throws Exception {
+	    Map<String, Object> result = new HashMap<>();
+	    try {
+	        String object_id = (String) class_info.get("object_id");
+	        Object obj = ObjectsStore.getObject(object_id);
+	        String methodName = (String) class_info.get("method_name");
+	        List<Object> methodArgs = (List<Object>) class_info.get("method_args");
+	        List<String> argTypeNames = (List<String>) class_info.get("method_arg_types");
+	        if (obj == null || methodName == null) {
+	            result.put("success", false);
+	            result.put("error", "class_name or method_name missing");
+	            return result;
+	        }
+	        Class<?> targetClass = obj.getClass();
+	        int argCount = (argTypeNames == null) ? 0 : argTypeNames.size();
+	        Class<?>[] argTypes = new Class[argCount];
+	        for (int i = 0; i < argCount; i++) {
+	            argTypes[i] = resolveClass(argTypeNames.get(i));
+	        }
+	        Object[] args = new Object[argCount];
+	        for (int i = 0; i < argCount; i++) {
+	            Object raw = methodArgs.get(i);
+	            Class<?> target = argTypes[i];
+	            args[i] = convertNumber(raw, target);
+	        }
+	        Method method = targetClass.getDeclaredMethod(methodName, argTypes);
+	        method.setAccessible(true);
+	        Object returnValue = method.invoke(obj, args);
 	        result.put("success", true);
 	        result.put("return_value", returnValue);
 	        result.put("return_type", returnValue == null ? "void/null" : returnValue.getClass().getName());
