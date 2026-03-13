@@ -88,12 +88,6 @@ public class HookerWebServerBoot {
 	}
 
 	private static String start(List<Class<?>> httpServerClassList, List<Class<?>> controllerClzList) throws Exception {
-		String hooker_server_flag = (String) System.getProperties().get("hooker_server_flag");
-		if (hooker_server_flag != null) {
-			return "Webserver is already started";
-		}
-		System.getProperties().setProperty("hooker_server_flag", "true");
-		String info = "";
 		int port = 8080;
 		if (!httpServerClassList.isEmpty()) {
 			HookerWebServerConfiguration serverAnno = httpServerClassList.get(0)
