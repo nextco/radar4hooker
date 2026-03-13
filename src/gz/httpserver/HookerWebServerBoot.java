@@ -27,6 +27,7 @@ import gz.httpserver.mustang.MustangAutoWireServlet;
 import gz.httpserver.mustang.MustangWebServer;
 import gz.radar.Android;
 import gz.radar.AndroidUI;
+import gz.radar.objects.ObjectsStore;
 import gz.util.Logger;
 
 public class HookerWebServerBoot {
@@ -87,6 +88,11 @@ public class HookerWebServerBoot {
 	}
 
 	private static String start(List<Class<?>> httpServerClassList, List<Class<?>> controllerClzList) throws Exception {
+		String hooker_server_flag = (String) System.getProperties().get("hooker_server_flag");
+		if (hooker_server_flag != null) {
+			return "Webserver is already started";
+		}
+		System.getProperties().setProperty("hooker_server_flag", "true");
 		String info = "";
 		int port = 8080;
 		if (!httpServerClassList.isEmpty()) {
@@ -94,7 +100,17 @@ public class HookerWebServerBoot {
 					.getAnnotation(HookerWebServerConfiguration.class);
 			port = serverAnno.port();
 		}
-		info += "Http server port:" + port + "\n";
+		return startWithPort(port, httpServerClassList, controllerClzList);
+	}
+	
+	private static String startWithPort(int port, List<Class<?>> httpServerClassList, List<Class<?>> controllerClzList) throws Exception {
+		String hooker_server_flag = (String) System.getProperties().get("hooker_server_flag");
+		if (hooker_server_flag != null) {
+			return "Webserver is already started";
+		}
+		System.getProperties().setProperty("hooker_server_flag", "true");
+		String info = "";
+		info += "Http server port: " + port + "\n";
 		String lanIP = getLanIp();
 		if (lanIP != null) {
 			info += "Http server: http://" +lanIP + ":" + port + "\n";

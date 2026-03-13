@@ -46,8 +46,8 @@ public abstract class HookerWebServer extends NanoHTTPD {
 	}
 
 	@Override
-	public void start(int arg0, boolean arg1) throws IOException {
-		super.start(arg0, arg1);
+	public void start(int port, boolean arg1) throws IOException {
+		super.start(port, arg1);
 		try {
 			AndroidUI.showToast("webserver启动了，牛逼不？");
 		} catch (Exception e) {
@@ -63,6 +63,7 @@ public abstract class HookerWebServer extends NanoHTTPD {
 	@Override
 	public void stop() {
 		super.stop();
+		System.getProperties().setProperty("hooker_server_flag", null);
 	}
 	
 }
