@@ -21,6 +21,7 @@ import gz.httpserver.annotation.HookerRequestMapping;
 import gz.httpserver.controller.BuiltinAppInfoController;
 import gz.httpserver.controller.BuiltinServiceController;
 import gz.httpserver.controller.BuiltinUIServiceController;
+import gz.httpserver.controller.BuiltinUIMcpController;
 import gz.httpserver.controller.BuiltinClassHelperController;
 import gz.httpserver.controller.BuiltinFileServiceController;
 import gz.httpserver.mustang.MustangAutoWireServlet;
@@ -113,6 +114,7 @@ public class HookerWebServerBoot {
 		
 		controllerClzList.add(BuiltinServiceController.class);
 		controllerClzList.add(BuiltinUIServiceController.class);
+		controllerClzList.add(BuiltinUIMcpController.class);
 		controllerClzList.add(BuiltinAppInfoController.class);
 		controllerClzList.add(BuiltinClassHelperController.class);
 		controllerClzList.add(BuiltinFileServiceController.class);

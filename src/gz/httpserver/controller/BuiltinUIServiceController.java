@@ -2,7 +2,6 @@ package gz.httpserver.controller;
 
 import java.io.File;
 import java.io.FileOutputStream;
-import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -222,8 +221,6 @@ public class BuiltinUIServiceController {
 		return "ok";
 	}
 
-	private Map<String, WeakReference<View>> viewCache = new HashMap<String, WeakReference<View>>();
-
 	private static String random3Letters() {
 		String letters = "abcdefghijklmnopqrstuvwxyz";
 		Random random = new Random();
@@ -329,9 +326,8 @@ public class BuiltinUIServiceController {
 			if (view.getId() != View.NO_ID) {
 				viewInfo.put("id", resolveViewIdName(activity, view.getId()));
 			}
-			String random3Letters = "hooker_" + random3Letters();
-			viewCache.put(random3Letters, new WeakReference<>(view));
-			viewInfo.put("hooker_id", random3Letters);
+			String hookerId = UISharedViewStore.cache(view);
+			viewInfo.put("hooker_id", hookerId);
 			TextView.OnClickListener onClickListener = xView.getOnClickListener();
 			if (onClickListener != null) {
 				viewInfo.put("on_click_listener_clazz", onClickListener.getClass().getName());
@@ -1334,7 +1330,7 @@ public class BuiltinUIServiceController {
 	private View findViewById(String id) throws Exception {
 		View view = null;
 		if (id.startsWith("hooker_")) {
-			view = viewCache.get(id).get();
+			view = UISharedViewStore.get(id);
 		} else {
 			view = AndroidUI.findViewByIdName(id);
 		}
