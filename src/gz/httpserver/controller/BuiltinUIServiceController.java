@@ -80,21 +80,33 @@ public class BuiltinUIServiceController {
 	private Logger logger = new Logger(BuiltinUIServiceController.class);
 	
 	@HookerRequestMapping(path = "finish_current_activity", produces = Produces.AUTO)
-	public String finish_current_activity() throws Exception {
-		AndroidUI.finishCurrentActivity();
-		return "ok";
+	public Map<String, Object> finish_current_activity() throws Exception {
+		return runAction("finish_current_activity", new UIAction() {
+			@Override
+			public void run() throws Exception {
+				AndroidUI.finishCurrentActivity();
+			}
+		});
 	}
 
 	@HookerRequestMapping(path = "back", produces = Produces.AUTO)
-	public String back() throws Exception {
-		AndroidUI.back();
-		return "ok";
+	public Map<String, Object> back() throws Exception {
+		return runAction("back", new UIAction() {
+			@Override
+			public void run() throws Exception {
+				AndroidUI.back();
+			}
+		});
 	}
 
 	@HookerRequestMapping(path = "home", produces = Produces.AUTO)
-	public String home() throws Exception {
-		AndroidUI.home();
-		return "ok";
+	public Map<String, Object> home() throws Exception {
+		return runAction("home", new UIAction() {
+			@Override
+			public void run() throws Exception {
+				AndroidUI.home();
+			}
+		});
 	}
 
 	@HookerRequestMapping(path = "screenshot_current", produces = Produces.AUTO, method = Method.GET)
@@ -113,30 +125,49 @@ public class BuiltinUIServiceController {
 	}
 
 	@HookerRequestMapping(path = "click_by_text", produces = Produces.AUTO)
-	public String click_by_text(@HookerRequestParam(name = "text") String text,
+	public Map<String, Object> click_by_text(@HookerRequestParam(name = "text") final String text,
 			@HookerRequestParam(name = "text_equeal", defaultValue = "false") boolean mustBeTextEqueal,
 			@HookerRequestParam(name = "visible", defaultValue = "false") boolean mustBeVisible) throws Exception {
-		AndroidUI.clickByText(text, mustBeTextEqueal, mustBeVisible);
-		return "ok";
+		final boolean textEqual = mustBeTextEqueal;
+		final boolean visible = mustBeVisible;
+		Map<String, Object> result = runAction("click_by_text", new UIAction() {
+			@Override
+			public void run() throws Exception {
+				AndroidUI.clickByText(text, textEqual, visible);
+			}
+		});
+		result.put("text", text);
+		result.put("text_equal", Boolean.valueOf(textEqual));
+		result.put("visible", Boolean.valueOf(visible));
+		return result;
 	}
 
 	@HookerRequestMapping(path = "click_by_id", produces = Produces.AUTO)
-	public String click_by_id(@HookerRequestParam(name = "id") String id) throws Exception {
-		View view = findViewById(id);
+	public Map<String, Object> click_by_id(@HookerRequestParam(name = "id") String id) throws Exception {
+		View view = requireView(id);
 		logger.info("view: " + view.getClass().getName());
 		AndroidUI.performClick(view);
-		return "ok";
+		return successResult("click_by_id", view, id);
 	}
 
 	@HookerRequestMapping(path = "show_toast", produces = Produces.AUTO)
-	public String show_toast(@HookerRequestParam(name = "text", defaultValue = "牛逼不？") String text) throws Exception {
-		AndroidUI.showToast(text);
-		return "ok";
+	public Map<String, Object> show_toast(@HookerRequestParam(name = "text", defaultValue = "牛逼不？") final String text) throws Exception {
+		Map<String, Object> result = runAction("show_toast", new UIAction() {
+			@Override
+			public void run() throws Exception {
+				AndroidUI.showToast(text);
+			}
+		});
+		result.put("text", text);
+		return result;
 	}
 	
 	@HookerRequestMapping(path = "view_page_swipe", produces = Produces.AUTO)
-	public String viewPageSwipe(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "direction", defaultValue = "next") String direction) throws Exception {
+	public Map<String, Object> viewPageSwipe(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "direction", defaultValue = "next") final String direction) throws Exception {
 		View view = findViewById(id);
+		if (view == null) {
+			return failResult("view_page_swipe", 404, "Not found view", id);
+		}
 		if (Class.forName("androidx.viewpager.widget.ViewPager").isInstance(view)) {
 			androidx.viewpager.widget.ViewPager viewPager = (androidx.viewpager.widget.ViewPager) view;
 			if (direction.equals("next")) {
@@ -157,12 +188,16 @@ public class BuiltinUIServiceController {
 					}
 				}
 			});
+		}else {
+			return failResult("view_page_swipe", 400, "View is not a supported pager", id, view);
 		}
-		return "ok";
+		Map<String, Object> result = successResult("view_page_swipe", view, id);
+		result.put("direction", direction);
+		return result;
 	}
 
 	@HookerRequestMapping(path = "start_activity", produces = Produces.AUTO, method = Method.POST)
-	public String start_activity(@HookerRequestPostJson Map<String, Object> postJson) throws Exception {
+	public Map<String, Object> start_activity(@HookerRequestPostJson Map<String, Object> postJson) throws Exception {
 		String className = (String) postJson.get("class_name"); // 可选，显式启动
 		Map<String, Object> extrasMap = (Map<String, Object>) postJson.get("extras"); // 可选参数
 		String type = (String) postJson.get("type"); // 可选 MIME type
@@ -218,7 +253,11 @@ public class BuiltinUIServiceController {
 			intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 		}
 		context.startActivity(intent);
-		return "ok";
+		Map<String, Object> result = successResult("start_activity");
+		result.put("class_name", className);
+		result.put("action", action);
+		result.put("data_uri", dataUri);
+		return result;
 	}
 
 	private static String random3Letters() {
@@ -232,47 +271,57 @@ public class BuiltinUIServiceController {
 	}
 
 	@HookerRequestMapping(path = "show_toast", produces = Produces.AUTO)
-	public String show_toast_bak(@HookerRequestParam(name = "text", defaultValue = "牛逼不？") String text)
+	public Map<String, Object> show_toast_bak(@HookerRequestParam(name = "text", defaultValue = "牛逼不？") String text)
 			throws Exception {
-		AndroidUI.showToast(text);
-		return "ok";
+		return show_toast(text);
 	}
 
 	@HookerRequestMapping(path = "try_to_dismiss_dialog", produces = Produces.AUTO)
-	public String tryDismissByDialogFragment() throws Exception {
-		AndroidUI2.tryDismissByDialogFragment();
-		return "ok";
+	public Map<String, Object> tryDismissByDialogFragment() throws Exception {
+		return runAction("try_to_dismiss_dialog", new UIAction() {
+			@Override
+			public void run() throws Exception {
+				AndroidUI2.tryDismissByDialogFragment();
+			}
+		});
 	}
 	
 	@HookerRequestMapping(path = "rv_scroll_by", produces = Produces.AUTO)
-	public String rvscrollBy(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "x") Integer x, @HookerRequestParam(name = "y") Integer y)
+	public Map<String, Object> rvscrollBy(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "x") Integer x, @HookerRequestParam(name = "y") Integer y)
 			throws Exception {
-		androidx.recyclerview.widget.RecyclerView rv = (RecyclerView) findViewById(id);
+		androidx.recyclerview.widget.RecyclerView rv = requireView(id, RecyclerView.class, "RecyclerView");
 		AndroidUI.scrollBy(rv, x, y);
-		return "ok";
+		Map<String, Object> result = successResult("rv_scroll_by", rv, id);
+		result.put("x", x);
+		result.put("y", y);
+		return result;
 	}
 	
 	@HookerRequestMapping(path = "rv_scroll_to_position", produces = Produces.AUTO)
-	public String rvscrollToPosition(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "position", defaultValue = "0") Integer position)
+	public Map<String, Object> rvscrollToPosition(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "position", defaultValue = "0") Integer position)
 			throws Exception {
-		androidx.recyclerview.widget.RecyclerView rv = (RecyclerView) findViewById(id);
+		androidx.recyclerview.widget.RecyclerView rv = requireView(id, RecyclerView.class, "RecyclerView");
 		AndroidUI.scrollToPosition(rv, position);
-		return "ok";
+		Map<String, Object> result = successResult("rv_scroll_to_position", rv, id);
+		result.put("position", position);
+		return result;
 	}
 	
 	
 	@HookerRequestMapping(path = "rv_smooth_scroll_to_position", produces = Produces.AUTO)
-	public String rvsmoothScrollToPosition(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "position", defaultValue = "0") Integer position)
+	public Map<String, Object> rvsmoothScrollToPosition(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "position", defaultValue = "0") Integer position)
 			throws Exception {
-		androidx.recyclerview.widget.RecyclerView rv = (RecyclerView) findViewById(id);
+		androidx.recyclerview.widget.RecyclerView rv = requireView(id, RecyclerView.class, "RecyclerView");
 		AndroidUI.smoothScrollToPosition(rv, position);
-		return "ok";
+		Map<String, Object> result = successResult("rv_smooth_scroll_to_position", rv, id);
+		result.put("position", position);
+		return result;
 	}
 	
 	@HookerRequestMapping(path = "set_checked", produces = Produces.AUTO)
-	public String set_checked(@HookerRequestParam(name = "id") String id)
+	public Map<String, Object> set_checked(@HookerRequestParam(name = "id") String id)
 			throws Exception {
-		ToggleButton tb  = (ToggleButton) findViewById(id);
+		ToggleButton tb  = requireView(id, ToggleButton.class, "ToggleButton");
 		tb.post(new Runnable() {
 			
 			@Override
@@ -281,13 +330,13 @@ public class BuiltinUIServiceController {
 				tb.setChecked(!checked);
 			}
 		});
-		return "ok";
+		return successResult("set_checked", tb, id);
 	}
 	
 	@HookerRequestMapping(path = "set_progress", produces = Produces.AUTO)
-	public String set_progress(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "progress", defaultValue = "0") Integer progress)
+	public Map<String, Object> set_progress(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "progress", defaultValue = "0") Integer progress)
 			throws Exception {
-		SeekBar seekbar  = (SeekBar) findViewById(id);
+		SeekBar seekbar  = requireView(id, SeekBar.class, "SeekBar");
 		seekbar.post(new Runnable() {
 			
 			@Override
@@ -295,7 +344,9 @@ public class BuiltinUIServiceController {
 				seekbar.setProgress(progress);
 			}
 		});
-		return "ok";
+		Map<String, Object> result = successResult("set_progress", seekbar, id);
+		result.put("progress", progress);
+		return result;
 	}
 
 	@HookerRequestMapping(path = "inspect", produces = Produces.AUTO, method = Method.GET)
@@ -1262,45 +1313,40 @@ public class BuiltinUIServiceController {
 	}
 
 	@HookerRequestMapping(path = "set_text", produces = Produces.AUTO, method = Method.GET)
-	public String set_text(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "text") String text)
+	public Map<String, Object> set_text(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "text") final String text)
 			throws Exception {
-		View view = findViewById(id);
-		if (view != null && view instanceof TextView) {
-			TextView textView = (TextView) view;
-			textView.post(new Runnable() {
+		final TextView textView = requireView(id, TextView.class, "TextView");
+		textView.post(new Runnable() {
 
-				@Override
-				public void run() {
-					textView.setText(text);
-				}
-			});
-		}
-		return "ok";
+			@Override
+			public void run() {
+				textView.setText(text);
+			}
+		});
+		Map<String, Object> result = successResult("set_text", textView, id);
+		result.put("text", text);
+		return result;
 	}
 
 	@HookerRequestMapping(path = "send_search_action", produces = Produces.AUTO, method = Method.GET)
-	public String send_search_action(@HookerRequestParam(name = "id") String id) throws Exception {
-		View view = findViewById(id);
-		if (view != null && view instanceof EditText) {
-			EditText editText = (EditText) view;
-			// 发送搜索事件
-			editText.post(new Runnable() {
-				
-				@Override
-				public void run() {
-					try {
-						editText.requestFocus();
-						InputMethodManager imm = (InputMethodManager) Android.getApplication().getSystemService(Context.INPUT_METHOD_SERVICE);
-						imm.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT);
-						editText.onEditorAction(EditorInfo.IME_ACTION_SEARCH);
-					} catch (Exception e) {
-						logger.warn(e);
-					}
-					
+	public Map<String, Object> send_search_action(@HookerRequestParam(name = "id") String id) throws Exception {
+		final EditText editText = requireView(id, EditText.class, "EditText");
+		editText.post(new Runnable() {
+			
+			@Override
+			public void run() {
+				try {
+					editText.requestFocus();
+					InputMethodManager imm = (InputMethodManager) Android.getApplication().getSystemService(Context.INPUT_METHOD_SERVICE);
+					imm.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT);
+					editText.onEditorAction(EditorInfo.IME_ACTION_SEARCH);
+				} catch (Exception e) {
+					logger.warn(e);
 				}
-			});
-		}
-		return "ok";
+				
+			}
+		});
+		return successResult("send_search_action", editText, id);
 	}
 
 	@HookerRequestMapping(path = "focus_on", produces = Produces.AUTO, method = Method.GET)
@@ -1335,6 +1381,79 @@ public class BuiltinUIServiceController {
 			view = AndroidUI.findViewByIdName(id);
 		}
 		return view;
+	}
+
+	private View requireView(String id) throws Exception {
+		View view = findViewById(id);
+		if (view == null) {
+			throw new IllegalArgumentException("Not found view: " + id);
+		}
+		return view;
+	}
+
+	private <T extends View> T requireView(String id, Class<T> expectedType, String expectedTypeName) throws Exception {
+		View view = requireView(id);
+		if (!expectedType.isInstance(view)) {
+			throw new IllegalArgumentException("View is not a " + expectedTypeName + ": " + view.getClass().getName());
+		}
+		return expectedType.cast(view);
+	}
+
+	private Map<String, Object> runAction(String action, UIAction uiAction) {
+		try {
+			uiAction.run();
+			return successResult(action);
+		} catch (IllegalArgumentException e) {
+			return failResult(action, 400, e.getMessage());
+		} catch (Throwable e) {
+			logger.warn(e);
+			return failResult(action, 500, e.toString());
+		}
+	}
+
+	private Map<String, Object> successResult(String action) {
+		Map<String, Object> result = new HashMap<String, Object>();
+		result.put("ok", true);
+		result.put("code", 200);
+		result.put("msg", "success");
+		result.put("action", action);
+		return result;
+	}
+
+	private Map<String, Object> successResult(String action, View view, String id) {
+		Map<String, Object> result = successResult(action);
+		result.put("id", id);
+		if (view != null) {
+			result.put("view_class", view.getClass().getName());
+		}
+		return result;
+	}
+
+	private Map<String, Object> failResult(String action, int code, String msg) {
+		Map<String, Object> result = new HashMap<String, Object>();
+		result.put("ok", false);
+		result.put("code", code);
+		result.put("msg", msg);
+		result.put("action", action);
+		return result;
+	}
+
+	private Map<String, Object> failResult(String action, int code, String msg, String id) {
+		Map<String, Object> result = failResult(action, code, msg);
+		result.put("id", id);
+		return result;
+	}
+
+	private Map<String, Object> failResult(String action, int code, String msg, String id, View view) {
+		Map<String, Object> result = failResult(action, code, msg, id);
+		if (view != null) {
+			result.put("view_class", view.getClass().getName());
+		}
+		return result;
+	}
+
+	private interface UIAction {
+		void run() throws Exception;
 	}
 	
 	private static boolean saveImageButtonToFile(ImageView imageView, File outFile) throws Exception {

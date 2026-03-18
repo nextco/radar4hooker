@@ -69,6 +69,9 @@ public class BuiltinUIMcpController {
 		if ("go_home".equals(name)) {
 			return uiController.home();
 		}
+		if ("try_to_dismiss_dialog".equals(name)) {
+			return uiController.tryDismissByDialogFragment();
+		}
 		if ("swipe_view_pager".equals(name)) {
 			return uiController.viewPageSwipe(required(arguments, "id"), stringValue(arguments.get("direction"), "next"));
 		}
@@ -102,6 +105,7 @@ public class BuiltinUIMcpController {
 				schema(prop("id", "string", true, "目标控件 id"))));
 		tools.add(tool("go_back", "执行系统返回。", schema()));
 		tools.add(tool("go_home", "回到系统桌面。", schema()));
+		tools.add(tool("try_to_dismiss_dialog", "尝试强制关闭当前界面上的阻断性弹窗，适合处理没有关闭按钮的升级弹窗或营销弹窗。", schema()));
 		tools.add(tool("swipe_view_pager", "控制 ViewPager/ViewPager2 向前或向后翻页。",
 				schema(prop("id", "string", true, "pager 控件 id"), prop("direction", "string", false, "next 或 prev"))));
 		tools.add(tool("scroll_recycler_by", "按偏移滚动 RecyclerView。",
