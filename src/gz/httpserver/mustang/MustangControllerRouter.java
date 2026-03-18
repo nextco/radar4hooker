@@ -145,5 +145,20 @@ public class MustangControllerRouter {
     	}
     	return new FindResult(FindResult.RESULT_SUCCESS, mustangServlet);
     }
+
+    public List<MustangServlet> getAllServlets() {
+    	List<MustangServlet> allServlets = new ArrayList<MustangServlet>();
+    	collectServlets(allServlets);
+    	return allServlets;
+    }
+
+    private void collectServlets(List<MustangServlet> allServlets) {
+    	if (nodeController != null) {
+    		allServlets.add(nodeController);
+    	}
+    	for (MustangControllerRouter childRouter : childRouters.values()) {
+    		childRouter.collectServlets(allServlets);
+    	}
+    }
     
 }

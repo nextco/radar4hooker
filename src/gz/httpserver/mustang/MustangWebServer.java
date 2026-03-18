@@ -6,6 +6,8 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import java.lang.reflect.Parameter;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -14,6 +16,8 @@ import gz.com.alibaba.fastjson.JSON;
 import gz.httpserver.HookerWebRequest;
 import gz.httpserver.HookerWebServer;
 import gz.httpserver.NanoHTTPD;
+import gz.httpserver.annotation.HookerRequestParam;
+import gz.httpserver.annotation.HookerRequestPostJson;
 import gz.httpserver.annotation.HookerRequestMapping.Produces;
 import gz.httpserver.mustang.MustangControllerRouter.FindResult;
 import gz.util.Logger;
@@ -138,31 +142,98 @@ public class MustangWebServer extends HookerWebServer {
 	
 	
 	public String getAPIInfo() {
-		String info = "";
-//		for (MustangController mustangController : mustangControllers) {
-//			String path = mustangController.getControllerDefinition().value();
-//			path += mustangController.getRequestMappingDefinition().path();
-//			info += "Mapping: " + path + " " + mustangController.getRequestMappingDefinition().method().name()  + "\n";
-//			Parameter[] parameters = mustangController.getTargetMethod().getParameters();
-//			Object[] args = new Object[parameters.length];
-//			
-//			for (int i = 0; i < parameters.length; i++) {
-//				Parameter p = parameters[i];
-//				HookerRequestParam hookerRequestParam = p.getAnnotation(HookerRequestParam.class);
-//				if (hookerRequestParam == null) {
-//					args[i] = null;
-//					continue;
-//				}
-//				String name = p.getName(); //兜底（需 -parameters）
-//				if (!"".equals(hookerRequestParam.name())) {
-//					name = hookerRequestParam.name();
-//				}
-//				int index = i + 1;
-//				info += "\tParam "+index+" name:" + name + " type:" +  p.getType().getSimpleName() + " required:" + hookerRequestParam.required() + " default value:" + hookerRequestParam.defaultValue();
-//				info += "\n";
-//			}
-//		}
-		return info;
+		List<MustangServlet> allServlets = mustangControllerRouter.getAllServlets();
+		Collections.sort(allServlets, new Comparator<MustangServlet>() {
+			@Override
+			public int compare(MustangServlet left, MustangServlet right) {
+				return buildRoutePath(left).compareTo(buildRoutePath(right));
+			}
+		});
+		StringBuilder info = new StringBuilder();
+		for (MustangServlet mustangServlet : allServlets) {
+			info.append("<div style='margin-top:12px;padding:12px 14px;background:#171717;border-radius:8px;'>");
+			info.append("<div><b>")
+				.append(escapeHtml(mustangServlet.getRequestMappingDefinition().method().name()))
+				.append("</b> ");
+			info.append("<a href=\"")
+				.append(escapeHtmlAttr(buildRoutePath(mustangServlet)))
+				.append("\">")
+				.append(escapeHtml(buildRoutePath(mustangServlet)))
+				.append("</a></div>");
+			info.append("<div style='color:#aaa;font-size:13px;margin-top:4px;'>");
+			info.append("Produces: ")
+				.append(escapeHtml(mustangServlet.getProduces().name()));
+			info.append(" | Handler: ")
+				.append(escapeHtml(mustangServlet.getTargetMethod().getDeclaringClass().getSimpleName()))
+				.append(".")
+				.append(escapeHtml(mustangServlet.getTargetMethod().getName()))
+				.append("</div>");
+			Parameter[] parameters = mustangServlet.getTargetMethod().getParameters();
+			if (parameters.length > 0) {
+				info.append("<div style='margin-top:8px;font-size:13px;'>");
+				for (int i = 0; i < parameters.length; i++) {
+					info.append("<div style='margin-top:4px;color:#ddd;'>")
+						.append(escapeHtml(describeParameter(parameters[i], i)))
+						.append("</div>");
+				}
+				info.append("</div>");
+			}
+			info.append("</div>\n");
+		}
+		return info.toString();
+	}
+
+	private String describeParameter(Parameter parameter, int index) {
+		HookerRequestParam hookerRequestParam = parameter.getAnnotation(HookerRequestParam.class);
+		if (hookerRequestParam != null) {
+			StringBuilder desc = new StringBuilder();
+			desc.append("Param ")
+				.append(index + 1)
+				.append(": ")
+				.append(hookerRequestParam.name())
+				.append(" (")
+				.append(parameter.getType().getSimpleName())
+				.append(")");
+			desc.append(" required=")
+				.append(hookerRequestParam.required());
+			if (hookerRequestParam.defaultValue() != null && !hookerRequestParam.defaultValue().isEmpty()) {
+				desc.append(" default=")
+					.append(hookerRequestParam.defaultValue());
+			}
+			return desc.toString();
+		}
+		if (parameter.isAnnotationPresent(HookerRequestPostJson.class)) {
+			return "Body: JSON -> " + parameter.getType().getSimpleName();
+		}
+		return "Injected: " + parameter.getType().getSimpleName();
+	}
+
+	private String buildRoutePath(MustangServlet mustangServlet) {
+		String fullPath = mustangServlet.getControllerDefinition().value()
+				+ "/"
+				+ mustangServlet.getRequestMappingDefinition().path();
+		String optimizedPath = fullPath.replaceAll("[/]+", "/");
+		if (optimizedPath.isEmpty()) {
+			return "/";
+		}
+		if (!optimizedPath.startsWith("/")) {
+			return "/" + optimizedPath;
+		}
+		return optimizedPath;
+	}
+
+	private String escapeHtml(String text) {
+		if (text == null) {
+			return "";
+		}
+		return text.replace("&", "&amp;")
+				.replace("<", "&lt;")
+				.replace(">", "&gt;")
+				.replace("\"", "&quot;");
+	}
+
+	private String escapeHtmlAttr(String text) {
+		return escapeHtml(text).replace("'", "&#39;");
 	}
     
 }
