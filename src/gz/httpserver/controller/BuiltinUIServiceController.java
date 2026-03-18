@@ -22,7 +22,10 @@ import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.Looper;
+import android.view.PixelCopy;
 import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
@@ -58,12 +61,14 @@ import androidx.recyclerview.widget.RecyclerView;
 import androidx.recyclerview.widget.StaggeredGridLayoutManager;
 import androidx.viewpager.widget.PagerAdapter;
 import gz.com.alibaba.fastjson.JSON;
+import gz.httpserver.NanoHTTPD.Response;
 import gz.httpserver.annotation.HookerController;
 import gz.httpserver.annotation.HookerRequestMapping;
 import gz.httpserver.annotation.HookerRequestMapping.Method;
 import gz.httpserver.annotation.HookerRequestMapping.Produces;
 import gz.httpserver.annotation.HookerRequestParam;
 import gz.httpserver.annotation.HookerRequestPostJson;
+import gz.httpserver.mustang.MustangServlet;
 import gz.radar.Android;
 import gz.radar.AndroidUI;
 import gz.radar.AndroidUI2;
@@ -91,6 +96,21 @@ public class BuiltinUIServiceController {
 	public String home() throws Exception {
 		AndroidUI.home();
 		return "ok";
+	}
+
+	@HookerRequestMapping(path = "screenshot_current", produces = Produces.AUTO, method = Method.GET)
+	public Response screenshot_current(MustangServlet servlet) throws Exception {
+		Activity activity = Android.getTopActivity();
+		if (activity == null) {
+			return servlet.newNotFound("top activity not found");
+		}
+		File screenshotFile = new File(BuiltinFileServiceController.tempFileDir,
+				"screen_current.png");
+		Bitmap bitmap = captureWindowByPixelCopy(activity);
+		if (saveBitmapToFile(bitmap, screenshotFile)) {
+			return servlet.newFileResponse(screenshotFile);
+		}
+		return servlet.newServerError("save screenshot failed");
 	}
 
 	@HookerRequestMapping(path = "click_by_text", produces = Produces.AUTO)
@@ -1333,16 +1353,56 @@ public class BuiltinUIServiceController {
 	    	if (bitmap == null) {
 	    		return false;
 	    	}
-		    FileOutputStream fos = new FileOutputStream(outFile);
-		    try {
-		    	boolean compressed = bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos);
-		    	fos.flush();
-		    	return compressed;
-		    } finally {
-		    	fos.close();
+			    return saveBitmapToFile(bitmap, outFile);
 		    }
-	    }
-	    return false;
+		    return false;
+		}
+
+	private static boolean saveBitmapToFile(Bitmap bitmap, File outFile) throws Exception {
+		if (bitmap == null || outFile == null) {
+			return false;
+		}
+		FileOutputStream fos = new FileOutputStream(outFile);
+		try {
+			boolean compressed = bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos);
+			fos.flush();
+			return compressed;
+		} finally {
+			fos.close();
+		}
+	}
+
+	private Bitmap captureWindowByPixelCopy(Activity activity) throws Exception {
+		if (activity == null || activity.getWindow() == null || activity.getWindow().getDecorView() == null) {
+			return null;
+		}
+		final View decorView = activity.getWindow().getDecorView();
+		final int width = decorView.getWidth();
+		final int height = decorView.getHeight();
+		if (width <= 0 || height <= 0) {
+			return null;
+		}
+		final Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+		final CountDownLatch latch = new CountDownLatch(1);
+		final AtomicReference<Integer> copyResult = new AtomicReference<Integer>(PixelCopy.ERROR_UNKNOWN);
+		HandlerThread thread = new HandlerThread("hooker-pixel-copy");
+		thread.start();
+		try {
+			Class<?> windowClass = Class.forName("android.view.Window");
+			java.lang.reflect.Method requestMethod = PixelCopy.class.getMethod("request", windowClass, Bitmap.class,
+					PixelCopy.OnPixelCopyFinishedListener.class, Handler.class);
+			requestMethod.invoke(null, activity.getWindow(), bitmap, new PixelCopy.OnPixelCopyFinishedListener() {
+				@Override
+				public void onPixelCopyFinished(int copyResultCode) {
+					copyResult.set(copyResultCode);
+					latch.countDown();
+				}
+			}, new Handler(thread.getLooper()));
+			latch.await();
+			return copyResult.get() == PixelCopy.SUCCESS ? bitmap : null;
+		} finally {
+			thread.quitSafely();
+		}
 	}
 	
 	public static Bitmap drawableToBitmap(Drawable drawable) {
