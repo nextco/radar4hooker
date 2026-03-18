@@ -41,10 +41,11 @@ public class BuiltinServiceController {
 	
 	@HookerRequestMapping(path = "/stop")
 	public String stop(HookerWebServer  hookerWebServer) {
+		System.getProperties().remove("hooker_server_flag");
 		new Thread() {
 			public void run() {
 				try {
-					Thread.sleep(2 * 1000);
+					Thread.sleep(500);
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}

@@ -10,6 +10,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 import android.app.Activity;
 import android.content.Context;
@@ -20,29 +22,36 @@ import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
-import android.os.SystemClock;
-import android.support.v4.app.FragmentActivity;
-import android.support.v4.app.FragmentManager;
-import android.support.v4.view.ViewPager;
-import android.view.KeyEvent;
+import android.os.Looper;
+import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
+import android.view.ViewStub;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.EditText;
+import android.widget.GridView;
+import android.widget.HorizontalScrollView;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.ListAdapter;
+import android.widget.ListView;
+import android.widget.ProgressBar;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
+import android.widget.RatingBar;
 import android.widget.SeekBar;
 import android.widget.SeekBar.OnSeekBarChangeListener;
+import android.widget.ScrollView;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.ToggleButton;
-import androidx.fragment.app.Fragment;
+import android.widget.VideoView;
+import android.webkit.WebView;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -272,8 +281,8 @@ public class BuiltinUIServiceController {
 		return "ok";
 	}
 
-	@HookerRequestMapping(path = "lookup_important_views", produces = Produces.AUTO, method = Method.GET)
-	public Object lookup_important_views(@HookerRequestParam(name = "format", defaultValue = "html") String format) throws Exception {
+	@HookerRequestMapping(path = "inspect", produces = Produces.AUTO, method = Method.GET)
+	public Object inspect(@HookerRequestParam(name = "format", defaultValue = "html") String format) throws Exception {
 		Map<String, Object> result = new HashMap<String, Object>();
 		List<Map<String, Object>> views = new ArrayList<Map<String, Object>>();
 		Activity activity = Android.getTopActivity();
@@ -283,10 +292,22 @@ public class BuiltinUIServiceController {
 			Map<String, Object> viewInfo = new HashMap<String, Object>();
 			viewInfo.put("is_focused", view.isFocused());
 			viewInfo.put("class", view.getClass().getName());
+			viewInfo.put("visibility", getVisibilityName(view.getVisibility()));
+			viewInfo.put("is_enabled", view.isEnabled());
+			viewInfo.put("is_clickable", view.isClickable());
+			viewInfo.put("is_long_clickable", view.isLongClickable());
+			viewInfo.put("is_selected", view.isSelected());
+			viewInfo.put("is_shown", view.isShown());
+			viewInfo.put("alpha", view.getAlpha());
+			viewInfo.put("width", view.getWidth());
+			viewInfo.put("height", view.getHeight());
+			viewInfo.put("x", view.getX());
+			viewInfo.put("y", view.getY());
+			viewInfo.put("content_description", safeToString(view.getContentDescription()));
+			viewInfo.put("parent_class", view.getParent() == null ? null : view.getParent().getClass().getName());
 			XView xView = new XView(view);
 			if (view.getId() != View.NO_ID) {
-				String name = activity.getResources().getResourceEntryName(view.getId());
-				viewInfo.put("id", name);
+				viewInfo.put("id", resolveViewIdName(activity, view.getId()));
 			}
 			String random3Letters = "hooker_" + random3Letters();
 			viewCache.put(random3Letters, new WeakReference<>(view));
@@ -303,9 +324,14 @@ public class BuiltinUIServiceController {
 				TextView textView = (TextView) view;
 				viewInfo.put("text", textView.getText().toString());
 			}
+			if (view instanceof Button) {
+				Button button = (Button) view;
+				viewInfo.put("type", "Button");
+				viewInfo.put("button_text", safeToString(button.getText()));
+			}
 			if (view instanceof EditText) {
 				EditText editText = (EditText) view;
-				String hint = editText.getHint().toString();
+				String hint = safeToString(editText.getHint());
 				viewInfo.put("super_class", EditText.class.getName());
 				viewInfo.put("hint_text", hint);
 
@@ -322,14 +348,33 @@ public class BuiltinUIServiceController {
 			if (view instanceof ImageView) {
 				ImageView imageView = (ImageView) view;
 				File tmpImageFile = new File(BuiltinFileServiceController.tempFileDir.getAbsolutePath()+ "/" + UUID.randomUUID().toString() + ".jpg");
-				if (saveImageButtonToFile(imageView, tmpImageFile)) {
-					viewInfo.put("image_url", "/file?filename="+tmpImageFile.getAbsolutePath());
+				try {
+					if (saveImageButtonToFile(imageView, tmpImageFile)) {
+						viewInfo.put("image_url", "/file?filename="+tmpImageFile.getAbsolutePath());
+					}
+				} catch (Exception e) {
+					logger.warn(e);
 				}
 			}
 			
 			if (view instanceof ImageButton) {
 				ImageButton imageButton = (ImageButton) view;
 				viewInfo.put("image_button_content_description", imageButton.getContentDescription());
+			}
+
+			if (view instanceof ProgressBar) {
+				ProgressBar progressBar = (ProgressBar) view;
+				viewInfo.put("progress_bar_progress", progressBar.getProgress());
+				viewInfo.put("progress_bar_max", progressBar.getMax());
+				viewInfo.put("progress_bar_indeterminate", progressBar.isIndeterminate());
+			}
+
+			if (view instanceof RatingBar) {
+				RatingBar ratingBar = (RatingBar) view;
+				viewInfo.put("rating", ratingBar.getRating());
+				viewInfo.put("rating_max", ratingBar.getMax());
+				viewInfo.put("rating_num_stars", ratingBar.getNumStars());
+				viewInfo.put("rating_step_size", ratingBar.getStepSize());
 			}
 			
 			if (AndroidUI2.isViewPager(view)) {
@@ -388,6 +433,36 @@ public class BuiltinUIServiceController {
 				    }
 				}
 
+			}
+
+			if (view instanceof Spinner) {
+				Spinner spinner = (Spinner) view;
+				viewInfo.put("type", "Spinner");
+				viewInfo.put("spinner_selected_position", spinner.getSelectedItemPosition());
+				viewInfo.put("spinner_selected_item", safeToString(spinner.getSelectedItem()));
+				viewInfo.put("spinner_prompt", safeToString(spinner.getPrompt()));
+				if (spinner.getAdapter() != null) {
+					viewInfo.put("spinner_adapter_class", spinner.getAdapter().getClass().getName());
+					viewInfo.put("spinner_item_count", spinner.getAdapter().getCount());
+				}
+			}
+
+			if (view instanceof ListView) {
+				ListView listView = (ListView) view;
+				viewInfo.put("type", "ListView");
+				fillAdapterViewInfo(viewInfo, listView.getAdapter());
+				viewInfo.put("first_visible_position", listView.getFirstVisiblePosition());
+				viewInfo.put("last_visible_position", listView.getLastVisiblePosition());
+				viewInfo.put("checked_item_position", listView.getCheckedItemPosition());
+			}
+
+			if (view instanceof GridView) {
+				GridView gridView = (GridView) view;
+				viewInfo.put("type", "GridView");
+				fillAdapterViewInfo(viewInfo, gridView.getAdapter());
+				viewInfo.put("first_visible_position", gridView.getFirstVisiblePosition());
+				viewInfo.put("last_visible_position", gridView.getLastVisiblePosition());
+				viewInfo.put("grid_num_columns", gridView.getNumColumns());
 			}
 			
 			if (view instanceof CheckBox) {
@@ -487,6 +562,8 @@ public class BuiltinUIServiceController {
 			                checkedListener.getClass().getName());
 			    }
 			}
+
+			fillSwitchLikeInfo(viewInfo, view, xView);
 			
 			if (view instanceof SeekBar) {
 				SeekBar seekBar = (SeekBar) view;
@@ -501,6 +578,54 @@ public class BuiltinUIServiceController {
 			    	viewInfo.put("on_seek_bar_change_listener_clazz",
 			    			onSeekBarChangeListener.getClass().getName());
 			    }
+			}
+
+			if (view instanceof ScrollView) {
+				ScrollView scrollView = (ScrollView) view;
+				viewInfo.put("type", "ScrollView");
+				viewInfo.put("scroll_y", scrollView.getScrollY());
+				viewInfo.put("scroll_x", scrollView.getScrollX());
+			}
+
+			if (view instanceof HorizontalScrollView) {
+				HorizontalScrollView horizontalScrollView = (HorizontalScrollView) view;
+				viewInfo.put("type", "HorizontalScrollView");
+				viewInfo.put("scroll_y", horizontalScrollView.getScrollY());
+				viewInfo.put("scroll_x", horizontalScrollView.getScrollX());
+			}
+
+				if (view instanceof WebView) {
+					WebView webView = (WebView) view;
+					viewInfo.put("type", "WebView");
+					fillWebViewInfo(viewInfo, webView);
+				}
+
+			if (view instanceof VideoView) {
+				VideoView videoView = (VideoView) view;
+				viewInfo.put("type", "VideoView");
+				viewInfo.put("video_current_position", videoView.getCurrentPosition());
+				viewInfo.put("video_duration", videoView.getDuration());
+				viewInfo.put("video_is_playing", videoView.isPlaying());
+			}
+
+			if (view instanceof TextureView) {
+				TextureView textureView = (TextureView) view;
+				viewInfo.put("type", "TextureView");
+				viewInfo.put("texture_is_available", textureView.isAvailable());
+			}
+
+			if (view instanceof ViewStub) {
+				ViewStub viewStub = (ViewStub) view;
+				viewInfo.put("type", "ViewStub");
+				viewInfo.put("layout_resource", viewStub.getLayoutResource());
+				viewInfo.put("inflated_id", viewStub.getInflatedId());
+			}
+
+			fillReflectiveViewInfo(viewInfo, view);
+
+			if (view instanceof ViewGroup) {
+				ViewGroup viewGroup = (ViewGroup) view;
+				viewInfo.put("child_count", viewGroup.getChildCount());
 			}
 			
 			views.add(viewInfo);
@@ -518,77 +643,448 @@ public class BuiltinUIServiceController {
 	
 	private String renderViewsHtml(Activity activity, List<Map<String, Object>> views) {
 	    StringBuilder sb = new StringBuilder();
-	    sb.append("<html><head><meta charset='utf-8'/>")
-	      .append("<style>")
-	      .append("body{font-family:monospace;padding:12px}")
-	      .append(".row{padding:8px 6px;border-bottom:1px solid #ddd;display:flex;gap:10px;align-items:flex-start}")
-	      .append(".img{width:64px;height:64px;object-fit:contain;border:1px solid #ccc;border-radius:6px;background:#fafafa}")
-	      .append(".kv{white-space:pre-wrap;word-break:break-word}")
-	      .append(".tag{display:inline-block;padding:1px 6px;border:1px solid #bbb;border-radius:10px;margin-right:6px;font-size:12px}")
-	      .append(".json{white-space:pre-wrap;word-break:break-word;font-size:12px;opacity:0.9;border:1px dashed #ccc;padding:6px;border-radius:6px;max-width:520px}")
-	      .append("</style></head><body>");
-
-	    sb.append("<h3>TopActivity: ")
-	      .append(escapeHtml(activity.getClass().getName()))
-	      .append(" | Title: ")
-	      .append(escapeHtml(String.valueOf(activity.getTitle())))
-	      .append(" | Views: ")
-	      .append(views.size())
-	      .append("</h3>");
-
-	    for (Map<String, Object> v : views) {
-	        String clazz = asString(v.get("class"));
-	        String id = asString(v.get("id"));
-	        String hookerId = asString(v.get("hooker_id"));
-	        String text = asString(v.get("text"));
-	        String hint = asString(v.get("hint_text"));
-	        String focused = String.valueOf(v.get("is_focused"));
-
-	        String clickL = asString(v.get("on_click_listener_clazz"));
-	        String longClickL = asString(v.get("on_long_click_listener_clazz"));
-	        String editorL = asString(v.get("on_editor_action_listener_clazz"));
-	        String focusL = asString(v.get("on_focus_change_listener_clazz"));
-	        String cd = asString(v.get("image_button_content_description"));
-	        String imageUrl = asString(v.get("image_url"));
-
-	        sb.append("<div class='row'>");
-
-	        // JSON 展示（一定要转义）
-	        String jsonText = JSON.toJSONString(v);
-	        sb.append("<pre class='json'>").append(escapeHtml(jsonText)).append("</pre>");
-	        
-	        // 图片展示（用统一 img 样式类）
-	        if (imageUrl != null && !imageUrl.isEmpty()) {
-	            sb.append("<a href='").append(escapeHtml(imageUrl)).append("' target='_blank'>")
-	              .append("<img class='img' src='").append(escapeHtml(imageUrl)).append("'/></a>");
-	        } else {
-	            sb.append("<div class='img'></div>");
-	        }
-
-	        sb.append("<div class='kv'>")
-	          .append("<span class='tag'>focused=").append(escapeHtml(focused)).append("</span>")
-	          .append("<span class='tag'>hooker_id=").append(escapeHtml(hookerId)).append("</span>")
-	          .append("<div><b>class</b>: ").append(escapeHtml(clazz)).append("</div>");
-
-	        if (id != null && !id.isEmpty()) sb.append("<div><b>id</b>: ").append(escapeHtml(id)).append("</div>");
-	        if (text != null && !text.isEmpty()) sb.append("<div><b>text</b>: ").append(escapeHtml(text)).append("</div>");
-	        if (hint != null && !hint.isEmpty()) sb.append("<div><b>hint</b>: ").append(escapeHtml(hint)).append("</div>");
-	        if (cd != null && !cd.isEmpty()) sb.append("<div><b>contentDesc</b>: ").append(escapeHtml(cd)).append("</div>");
-
-	        if (clickL != null && !clickL.isEmpty()) sb.append("<div><b>onClick</b>: ").append(escapeHtml(clickL)).append("</div>");
-	        if (longClickL != null && !longClickL.isEmpty()) sb.append("<div><b>onLongClick</b>: ").append(escapeHtml(longClickL)).append("</div>");
-	        if (editorL != null && !editorL.isEmpty()) sb.append("<div><b>onEditorAction</b>: ").append(escapeHtml(editorL)).append("</div>");
-	        if (focusL != null && !focusL.isEmpty()) sb.append("<div><b>onFocusChange</b>: ").append(escapeHtml(focusL)).append("</div>");
-
-	        sb.append("</div></div>");
+	    int clickableCount = 0;
+	    int focusedCount = 0;
+	    int imageCount = 0;
+	    for (Map<String, Object> view : views) {
+	    	if (Boolean.TRUE.equals(view.get("is_clickable"))) {
+	    		clickableCount++;
+	    	}
+	    	if (Boolean.TRUE.equals(view.get("is_focused"))) {
+	    		focusedCount++;
+	    	}
+	    	if (!asString(view.get("image_url")).isEmpty()) {
+	    		imageCount++;
+	    	}
 	    }
+	    sb.append("<html><head><meta charset='utf-8'/>")
+	      .append("<meta name='viewport' content='width=device-width, initial-scale=1'/>")
+	      .append("<style>")
+	      .append("body{margin:0;background:#f4f6f8;color:#18212b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}")
+	      .append(".page{max-width:1200px;margin:0 auto;padding:18px}")
+	      .append(".hero{background:linear-gradient(135deg,#0f172a,#1d4ed8);color:#fff;border-radius:18px;padding:20px 22px;box-shadow:0 20px 40px rgba(15,23,42,.18)}")
+	      .append(".hero h1{margin:0 0 8px;font-size:24px}")
+	      .append(".hero-sub{opacity:.85;font-size:13px;line-height:1.6}")
+	      .append(".stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-top:16px}")
+	      .append(".stat{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.16);border-radius:14px;padding:12px 14px}")
+	      .append(".stat-label{font-size:12px;opacity:.8;text-transform:uppercase;letter-spacing:.08em}")
+	      .append(".stat-value{margin-top:6px;font-size:22px;font-weight:700}")
+	      .append(".views{display:grid;gap:14px;margin-top:18px}")
+	      .append(".card{background:#fff;border:1px solid #dde3ea;border-radius:18px;box-shadow:0 10px 24px rgba(15,23,42,.06);overflow:hidden}")
+	      .append(".card-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:16px 18px 10px;border-bottom:1px solid #eef2f6}")
+	      .append(".card-title{min-width:0}")
+	      .append(".card-title h2{margin:0;font-size:16px;line-height:1.4;word-break:break-word}")
+	      .append(".card-sub{margin-top:6px;color:#526071;font-size:12px;word-break:break-word}")
+	      .append(".badges{text-align:right}")
+	      .append(".badge{display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:600;margin-left:6px;margin-bottom:6px}")
+	      .append(".badge-blue{background:#dbeafe;color:#1d4ed8}")
+	      .append(".badge-green{background:#dcfce7;color:#15803d}")
+	      .append(".badge-amber{background:#fef3c7;color:#b45309}")
+	      .append(".badge-slate{background:#e2e8f0;color:#334155}")
+	      .append(".card-body{padding:16px 18px 18px}")
+	      .append(".content-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(320px,.95fr);gap:14px;align-items:start}")
+	      .append(".left-col,.right-col{min-width:0}")
+	      .append(".topline{display:grid;grid-template-columns:minmax(0,1fr) 104px;gap:16px;align-items:start}")
+	      .append(".preview{width:104px;height:104px;border-radius:14px;border:1px solid #d7dee7;background:#f8fafc;display:flex;align-items:center;justify-content:center;overflow:hidden}")
+	      .append(".preview img{width:100%;height:100%;object-fit:contain;background:#fff}")
+	      .append(".empty-preview{font-size:12px;color:#94a3b8;text-align:center;padding:8px}")
+	      .append(".primary{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px 18px}")
+	      .append(".field{min-width:0}")
+	      .append(".label{display:block;font-size:11px;font-weight:700;letter-spacing:.08em;color:#64748b;text-transform:uppercase;margin-bottom:4px}")
+	      .append(".value{font-size:14px;line-height:1.5;word-break:break-word}")
+	      .append(".sections{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-top:14px}")
+	      .append(".panel{background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:12px 14px}")
+	      .append(".panel h3{margin:0 0 10px;font-size:13px;color:#0f172a}")
+	      .append(".meta-line{margin:0 0 8px;font-size:13px;line-height:1.5;word-break:break-word}")
+	      .append(".action-stack{display:grid;gap:10px;margin-top:14px}")
+	      .append(".action-bar{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}")
+	      .append(".action-btn{border:none;border-radius:12px;padding:10px 14px;font-size:13px;font-weight:700;cursor:pointer;transition:transform .15s ease,box-shadow .15s ease}")
+	      .append(".action-btn:hover{transform:translateY(-1px);box-shadow:0 8px 18px rgba(29,78,216,.18)}")
+	      .append(".action-btn:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none}")
+	      .append(".click-btn{background:#1d4ed8;color:#fff}")
+	      .append(".search-btn{background:#0f766e;color:#fff}")
+	      .append(".text-form{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center}")
+	      .append(".text-input{width:100%;border:1px solid #cbd5e1;border-radius:12px;padding:10px 12px;font-size:13px;background:#fff;color:#0f172a}")
+	      .append(".text-input:focus{outline:none;border-color:#1d4ed8;box-shadow:0 0 0 3px rgba(29,78,216,.12)}")
+	      .append(".raw-panel{background:#0f172a;color:#dbeafe;border:1px solid #1e293b;border-radius:14px;padding:12px 14px}")
+	      .append(".raw-panel h3{margin:0 0 10px;font-size:13px;color:#bfdbfe}")
+	      .append(".raw-grid{display:grid;gap:8px}")
+	      .append(".raw-item{padding:8px 10px;background:rgba(15,23,42,.38);border:1px solid rgba(148,163,184,.18);border-radius:10px}")
+	      .append(".raw-key{display:block;font-size:11px;font-weight:700;letter-spacing:.08em;color:#93c5fd;text-transform:uppercase;margin-bottom:4px}")
+	      .append(".raw-value{font-size:12px;line-height:1.55;word-break:break-word;white-space:pre-wrap}")
+	      .append(".raw-empty{font-size:12px;color:#94a3b8}")
+	      .append(".action-result{font-size:12px;text-align:right;color:#64748b;min-height:18px;margin-top:8px}")
+	      .append("@media (max-width:900px){.content-grid{grid-template-columns:1fr}}")
+	      .append("@media (max-width:640px){.text-form{grid-template-columns:1fr}.action-bar{justify-content:stretch}.action-btn{width:100%}}")
+	      .append("@media (max-width:700px){.card-head{display:block}.badges{text-align:left;margin-top:10px}.topline{grid-template-columns:1fr}.preview{width:100%;height:160px}}")
+	      .append("</style>")
+	      .append("<script>")
+	      .append("function clickView(id,btn){if(!id||!btn){return;}var card=btn.closest('.card');var result=card?card.querySelector('.action-result'):null;btn.disabled=true;if(result){result.textContent='clicking...';}fetch('/hooker/ui/click_by_id?id='+encodeURIComponent(id)).then(function(resp){return resp.text();}).then(function(text){if(result){result.textContent='click result: '+text;}}).catch(function(err){if(result){result.textContent='click failed: '+err;}}).finally(function(){btn.disabled=false;});}")
+	      .append("function setTextValue(id,btn){if(!id||!btn){return;}var card=btn.closest('.card');var result=card?card.querySelector('.action-result'):null;var input=card?card.querySelector('.text-input'):null;if(!input){return;}btn.disabled=true;if(result){result.textContent='setting text...';}fetch('/hooker/ui/set_text?id='+encodeURIComponent(id)+'&text='+encodeURIComponent(input.value||'')).then(function(resp){return resp.text();}).then(function(text){if(result){result.textContent='set text result: '+text;}}).catch(function(err){if(result){result.textContent='set text failed: '+err;}}).finally(function(){btn.disabled=false;});}")
+	      .append("function sendSearchAction(id,btn){if(!id||!btn){return;}var card=btn.closest('.card');var result=card?card.querySelector('.action-result'):null;btn.disabled=true;if(result){result.textContent='sending search...';}fetch('/hooker/ui/send_search_action?id='+encodeURIComponent(id)).then(function(resp){return resp.text();}).then(function(text){if(result){result.textContent='search action result: '+text;}}).catch(function(err){if(result){result.textContent='search action failed: '+err;}}).finally(function(){btn.disabled=false;});}")
+	      .append("</script></head><body><div class='page'>");
 
-	    sb.append("</body></html>");
+	    sb.append("<section class='hero'>")
+	      .append("<h1>UI Inspect</h1>")
+	      .append("<div class='hero-sub'><div><b>Top Activity</b>: ")
+	      .append(escapeHtml(activity.getClass().getName()))
+	      .append("</div><div><b>Title</b>: ")
+	      .append(escapeHtml(String.valueOf(activity.getTitle())))
+	      .append("</div></div>")
+	      .append("<div class='stats'>")
+	      .append(renderStat("Views", String.valueOf(views.size())))
+	      .append(renderStat("Clickable", String.valueOf(clickableCount)))
+	      .append(renderStat("Focused", String.valueOf(focusedCount)))
+	      .append(renderStat("Images", String.valueOf(imageCount)))
+	      .append("</div></section>");
+
+	    sb.append("<section class='views'>");
+	    for (Map<String, Object> v : views) {
+	    	String clazz = asString(v.get("class"));
+	    	String type = asString(v.get("type"));
+	    	String title = !type.isEmpty() ? type : simpleClassName(clazz);
+	    	String id = asString(v.get("id"));
+	    	String hookerId = asString(v.get("hooker_id"));
+	    	String text = asString(v.get("text"));
+	    	String hint = asString(v.get("hint_text"));
+	    	String superClass = asString(v.get("super_class"));
+	    	String contentDescription = asString(v.get("content_description"));
+	    	String imageButtonContentDescription = asString(v.get("image_button_content_description"));
+	    	String listenerSummary = joinNonEmpty(", ",
+	    			asString(v.get("on_click_listener_clazz")),
+	    			asString(v.get("on_long_click_listener_clazz")),
+	    			asString(v.get("on_editor_action_listener_clazz")),
+	    			asString(v.get("on_focus_change_listener_clazz")),
+	    			asString(v.get("on_checked_change_listener_clazz")),
+	    			asString(v.get("on_seek_bar_change_listener_clazz")));
+	    	String imageUrl = asString(v.get("image_url"));
+	    	String statusBadge = asString(v.get("visibility"));
+	    	if (statusBadge.isEmpty()) {
+	    		statusBadge = "UNKNOWN";
+	    	}
+	    	boolean isClickable = Boolean.TRUE.equals(v.get("is_clickable"));
+	    	boolean isEditText = EditText.class.getName().equals(superClass) || EditText.class.getName().equals(clazz);
+	    	boolean isImageView = viewClassMatches(clazz, ImageView.class) || viewClassMatches(clazz, ImageButton.class);
+	    	boolean isTextView = viewClassMatches(clazz, TextView.class);
+	    	sb.append("<article class='card'>")
+	    	  .append("<div class='card-head'><div class='card-title'>")
+	    	  .append("<h2>").append(escapeHtml(title)).append("</h2>")
+	    	  .append("<div class='card-sub'>").append(escapeHtml(clazz)).append("</div>");
+	    	if (!id.isEmpty()) {
+	    		sb.append("<div class='card-sub'>id: ").append(escapeHtml(id)).append("</div>");
+	    	}
+	    	sb.append("</div><div class='badges'>")
+		    	  .append(renderBadge(statusBadge, "badge-blue"))
+		    	  .append(renderBooleanBadge("focused", Boolean.TRUE.equals(v.get("is_focused")), "badge-amber"))
+		    	  .append(renderBooleanBadge("clickable", isClickable, "badge-green"))
+		    	  .append("</div></div>")
+	    	  .append("<div class='card-body'><div class='content-grid'><div class='left-col'><div class='topline'><div class='primary'>");
+
+	    	appendField(sb, "hooker_id", hookerId);
+	    	appendField(sb, "text", text);
+	    	appendField(sb, "hint", hint);
+	    	appendField(sb, "content", !contentDescription.isEmpty() ? contentDescription : imageButtonContentDescription);
+	    	appendField(sb, "parent", asString(v.get("parent_class")));
+	    	appendField(sb, "bounds", buildBoundsText(v));
+	    	appendField(sb, "alpha", asString(v.get("alpha")));
+	    	appendField(sb, "selected", asString(v.get("is_selected")));
+	    	appendField(sb, "shown", asString(v.get("is_shown")));
+	    	appendField(sb, "enabled", asString(v.get("is_enabled")));
+	    	sb.append("</div>");
+
+	    	if (!imageUrl.isEmpty()) {
+	    		sb.append("<a class='preview' href='").append(escapeHtml(imageUrl)).append("' target='_blank'>")
+	    		  .append("<img src='").append(escapeHtml(imageUrl)).append("'/></a>");
+	    	} else {
+	    		sb.append("<div class='preview'><div class='empty-preview'>No Preview</div></div>");
+	    	}
+	    	sb.append("</div><div class='sections'>");
+
+	    	sb.append("<section class='panel'><h3>Interaction</h3>");
+	    	appendMetaLine(sb, "long clickable", asString(v.get("is_long_clickable")));
+	    	appendMetaLine(sb, "listeners", listenerSummary);
+	    	appendMetaLine(sb, "adapter", firstNonEmpty(asString(v.get("adapter_class")), asString(v.get("spinner_adapter_class"))));
+	    	appendMetaLine(sb, "item count", firstNonEmpty(asString(v.get("item_count")), asString(v.get("spinner_item_count"))));
+	    	appendMetaLine(sb, "checked", asString(v.get("checked")));
+	    	appendMetaLine(sb, "progress", buildProgressText(v));
+	    	appendMetaLine(sb, "scroll", buildScrollText(v));
+	    	sb.append("</section>");
+
+	    	sb.append("<section class='panel'><h3>View Details</h3>");
+	    	appendMetaLine(sb, "web", buildWebText(v));
+	    	appendMetaLine(sb, "video", buildVideoText(v));
+	    	appendMetaLine(sb, "view pager", buildViewPagerText(v));
+	    	appendMetaLine(sb, "list range", buildRangeText(v));
+	    	appendMetaLine(sb, "child count", asString(v.get("child_count")));
+	    	appendMetaLine(sb, "extra", buildExtraText(v));
+	    	sb.append("</section>");
+	    	sb.append("</div>");
+	    	sb.append("<div class='action-stack'>");
+	    	if (isEditText && !hookerId.isEmpty()) {
+	    		sb.append("<div class='text-form'><input class='text-input' type='text' value='")
+	    		  .append(escapeHtml(text))
+	    		  .append("' placeholder='")
+	    		  .append(escapeHtml(hint.isEmpty() ? "input text" : hint))
+	    		  .append("'/><button class='action-btn click-btn' onclick=\"setTextValue('")
+	    		  .append(escapeJs(hookerId))
+	    		  .append("', this)\">Set Text</button><button class='action-btn search-btn' onclick=\"sendSearchAction('")
+	    		  .append(escapeJs(hookerId))
+	    		  .append("', this)\">Search</button></div>");
+	    	}
+	    	if ((isClickable || isImageView || isTextView) && !hookerId.isEmpty()) {
+	    		sb.append("<div class='action-bar'><button class='action-btn click-btn' onclick=\"clickView('")
+	    		  .append(escapeJs(hookerId))
+	    		  .append("', this)\">Click</button></div>");
+	    	}
+	    	sb.append("<div class='action-result'></div></div>");
+	    	sb.append("</div><div class='right-col'><aside class='raw-panel'><h3>Raw Fields</h3>")
+	    	  .append(renderRawFieldsHtml(v))
+	    	  .append("</aside></div></div></div></article>");
+	    }
+	    sb.append("</section></div></body></html>");
 	    return sb.toString();
 	}
 
 	private String asString(Object o) {
 	    return o == null ? "" : String.valueOf(o);
+	}
+
+	private String renderStat(String label, String value) {
+		return "<div class='stat'><div class='stat-label'>" + escapeHtml(label) + "</div><div class='stat-value'>"
+				+ escapeHtml(value) + "</div></div>";
+	}
+
+	private String renderBadge(String text, String clazz) {
+		return "<span class='badge " + clazz + "'>" + escapeHtml(text) + "</span>";
+	}
+
+	private String renderBooleanBadge(String label, boolean value, String clazz) {
+		if (!value) {
+			return "";
+		}
+		return renderBadge(label, clazz);
+	}
+
+	private void appendField(StringBuilder sb, String label, String value) {
+		if (value == null || value.isEmpty()) {
+			return;
+		}
+		sb.append("<div class='field'><span class='label'>")
+		  .append(escapeHtml(label))
+		  .append("</span><div class='value'>")
+		  .append(escapeHtml(value))
+		  .append("</div></div>");
+	}
+
+	private void appendMetaLine(StringBuilder sb, String label, String value) {
+		if (value == null || value.isEmpty()) {
+			return;
+		}
+		sb.append("<div class='meta-line'><span class='label'>")
+		  .append(escapeHtml(label))
+		  .append("</span><span class='value'>")
+		  .append(escapeHtml(value))
+		  .append("</span></div>");
+	}
+
+	private void fillWebViewInfo(Map<String, Object> viewInfo, WebView webView) {
+		try {
+			Map<String, Object> webInfo = runOnMainThread(new ValueCallable<Map<String, Object>>() {
+				@Override
+				public Map<String, Object> call() {
+					Map<String, Object> data = new HashMap<String, Object>();
+					data.put("web_url", webView.getUrl());
+					data.put("web_title", webView.getTitle());
+					data.put("web_progress", webView.getProgress());
+					data.put("web_can_go_back", webView.canGoBack());
+					data.put("web_can_go_forward", webView.canGoForward());
+					data.put("web_content_height", webView.getContentHeight());
+					return data;
+				}
+			});
+			viewInfo.putAll(webInfo);
+		} catch (Exception e) {
+			logger.warn(e);
+			viewInfo.put("web_error", e.getClass().getName());
+		}
+	}
+
+	private <T> T runOnMainThread(ValueCallable<T> callable) throws Exception {
+		if (Looper.myLooper() == Looper.getMainLooper()) {
+			return callable.call();
+		}
+		CountDownLatch latch = new CountDownLatch(1);
+		AtomicReference<T> resultRef = new AtomicReference<T>();
+		AtomicReference<Throwable> errorRef = new AtomicReference<Throwable>();
+		Activity activity = Android.getTopActivity();
+		if (activity == null) {
+			return callable.call();
+		}
+		activity.runOnUiThread(new Runnable() {
+			@Override
+			public void run() {
+				try {
+					resultRef.set(callable.call());
+				} catch (Throwable e) {
+					errorRef.set(e);
+				} finally {
+					latch.countDown();
+				}
+			}
+		});
+		latch.await();
+		if (errorRef.get() != null) {
+			Throwable error = errorRef.get();
+			if (error instanceof Exception) {
+				throw (Exception) error;
+			}
+			throw new RuntimeException(error);
+		}
+		return resultRef.get();
+	}
+
+	private interface ValueCallable<T> {
+		T call() throws Exception;
+	}
+
+	private String simpleClassName(String clazz) {
+		if (clazz == null || clazz.isEmpty()) {
+			return "";
+		}
+		int index = clazz.lastIndexOf('.');
+		return index >= 0 ? clazz.substring(index + 1) : clazz;
+	}
+
+	private boolean viewClassMatches(String className, Class<?> targetClass) {
+		if (className == null || className.isEmpty() || targetClass == null) {
+			return false;
+		}
+		try {
+			return targetClass.isAssignableFrom(Class.forName(className));
+		} catch (Throwable e) {
+			return className.equals(targetClass.getName());
+		}
+	}
+
+	private String buildBoundsText(Map<String, Object> viewInfo) {
+		String width = asString(viewInfo.get("width"));
+		String height = asString(viewInfo.get("height"));
+		String x = asString(viewInfo.get("x"));
+		String y = asString(viewInfo.get("y"));
+		if (width.isEmpty() && height.isEmpty() && x.isEmpty() && y.isEmpty()) {
+			return "";
+		}
+		return joinNonEmpty(" | ",
+				width.isEmpty() || height.isEmpty() ? "" : width + " x " + height,
+				x.isEmpty() || y.isEmpty() ? "" : "x=" + x + ", y=" + y);
+	}
+
+	private String buildProgressText(Map<String, Object> viewInfo) {
+		String progress = firstNonEmpty(asString(viewInfo.get("progress_bar_progress")), asString(viewInfo.get("seek_bar_progress")));
+		String max = firstNonEmpty(asString(viewInfo.get("progress_bar_max")), asString(viewInfo.get("seek_bar_max")));
+		String rating = asString(viewInfo.get("rating"));
+		if (!rating.isEmpty()) {
+			return joinNonEmpty(" | ", "rating=" + rating, "stars=" + asString(viewInfo.get("rating_num_stars")));
+		}
+		if (progress.isEmpty() && max.isEmpty()) {
+			return "";
+		}
+		return progress + (max.isEmpty() ? "" : " / " + max);
+	}
+
+	private String buildScrollText(Map<String, Object> viewInfo) {
+		String scrollX = asString(viewInfo.get("scroll_x"));
+		String scrollY = asString(viewInfo.get("scroll_y"));
+		if (scrollX.isEmpty() && scrollY.isEmpty()) {
+			return "";
+		}
+		return joinNonEmpty(", ", scrollX.isEmpty() ? "" : "x=" + scrollX, scrollY.isEmpty() ? "" : "y=" + scrollY);
+	}
+
+	private String buildWebText(Map<String, Object> viewInfo) {
+		String url = asString(viewInfo.get("web_url"));
+		String title = asString(viewInfo.get("web_title"));
+		String progress = asString(viewInfo.get("web_progress"));
+		return joinNonEmpty(" | ",
+				title.isEmpty() ? "" : title,
+				url,
+				progress.isEmpty() ? "" : "progress=" + progress + "%");
+	}
+
+	private String buildVideoText(Map<String, Object> viewInfo) {
+		String current = asString(viewInfo.get("video_current_position"));
+		String duration = asString(viewInfo.get("video_duration"));
+		String playing = asString(viewInfo.get("video_is_playing"));
+		if (current.isEmpty() && duration.isEmpty() && playing.isEmpty()) {
+			return "";
+		}
+		return joinNonEmpty(" | ",
+				current.isEmpty() ? "" : "current=" + current,
+				duration.isEmpty() ? "" : "duration=" + duration,
+				playing.isEmpty() ? "" : "playing=" + playing);
+	}
+
+	private String buildViewPagerText(Map<String, Object> viewInfo) {
+		String current = asString(viewInfo.get("view_page_current_item"));
+		String count = asString(viewInfo.get("view_page_count"));
+		String superClass = asString(viewInfo.get("view_page_super_class"));
+		if (current.isEmpty() && count.isEmpty() && superClass.isEmpty()) {
+			return "";
+		}
+		return joinNonEmpty(" | ",
+				superClass,
+				current.isEmpty() ? "" : "current=" + current,
+				count.isEmpty() ? "" : "count=" + count);
+	}
+
+	private String buildRangeText(Map<String, Object> viewInfo) {
+		String first = firstNonEmpty(asString(viewInfo.get("first_visible_position")), asString(viewInfo.get("first_visible_positions")));
+		String last = firstNonEmpty(asString(viewInfo.get("last_visible_position")), asString(viewInfo.get("last_visible_positions")));
+		if (first.isEmpty() && last.isEmpty()) {
+			return "";
+		}
+		return joinNonEmpty(" | ",
+				first.isEmpty() ? "" : "first=" + first,
+				last.isEmpty() ? "" : "last=" + last);
+	}
+
+	private String buildExtraText(Map<String, Object> viewInfo) {
+		return joinNonEmpty(" | ",
+				asString(viewInfo.get("layout_manager")),
+				asString(viewInfo.get("orientation")),
+				asString(viewInfo.get("spinner_selected_item")),
+				asString(viewInfo.get("textOn")),
+				asString(viewInfo.get("currentText")),
+				asString(viewInfo.get("texture_is_available")));
+	}
+
+	private String firstNonEmpty(String... values) {
+		if (values == null) {
+			return "";
+		}
+		for (String value : values) {
+			if (value != null && !value.isEmpty()) {
+				return value;
+			}
+		}
+		return "";
+	}
+
+	private String joinNonEmpty(String separator, String... values) {
+		if (values == null || values.length == 0) {
+			return "";
+		}
+		StringBuilder sb = new StringBuilder();
+		for (String value : values) {
+			if (value == null || value.isEmpty()) {
+				continue;
+			}
+			if (sb.length() > 0) {
+				sb.append(separator);
+			}
+			sb.append(value);
+		}
+		return sb.toString();
 	}
 
 	private String escapeHtml(String s) {
@@ -598,6 +1094,155 @@ public class BuiltinUIServiceController {
 	            .replace(">", "&gt;")
 	            .replace("\"", "&quot;")
 	            .replace("'", "&#39;");
+	}
+
+	private String escapeJs(String s) {
+		if (s == null) {
+			return "";
+		}
+		return s.replace("\\", "\\\\").replace("'", "\\'");
+	}
+
+	private String renderRawFieldsHtml(Map<String, Object> viewInfo) {
+		StringBuilder sb = new StringBuilder();
+		sb.append("<div class='raw-grid'>");
+		List<String> keys = new ArrayList<String>(viewInfo.keySet());
+		java.util.Collections.sort(keys);
+		for (String key : keys) {
+			Object value = viewInfo.get(key);
+			sb.append("<div class='raw-item'><span class='raw-key'>")
+			  .append(escapeHtml(key))
+			  .append("</span><div class='raw-value'>")
+			  .append(escapeHtml(formatRawValue(value)))
+			  .append("</div></div>");
+		}
+		if (keys.isEmpty()) {
+			sb.append("<div class='raw-empty'>No raw fields</div>");
+		}
+		sb.append("</div>");
+		return sb.toString();
+	}
+
+	private String formatRawValue(Object value) {
+		if (value == null) {
+			return "null";
+		}
+		if (value instanceof String || value instanceof Number || value instanceof Boolean) {
+			return String.valueOf(value);
+		}
+		return JSON.toJSONString(value, true);
+	}
+
+	private String safeToString(Object obj) {
+		return obj == null ? null : String.valueOf(obj);
+	}
+
+	private String getVisibilityName(int visibility) {
+		if (visibility == View.VISIBLE) {
+			return "VISIBLE";
+		}
+		if (visibility == View.INVISIBLE) {
+			return "INVISIBLE";
+		}
+		if (visibility == View.GONE) {
+			return "GONE";
+		}
+		return String.valueOf(visibility);
+	}
+
+	private void fillAdapterViewInfo(Map<String, Object> viewInfo, ListAdapter adapter) {
+		if (adapter == null) {
+			return;
+		}
+		viewInfo.put("adapter_class", adapter.getClass().getName());
+		viewInfo.put("item_count", adapter.getCount());
+	}
+
+	private void fillSwitchLikeInfo(Map<String, Object> viewInfo, View view, XView xView) {
+		if (!isInstanceOf(view, "android.widget.Switch")
+				&& !isInstanceOf(view, "androidx.appcompat.widget.SwitchCompat")
+				&& !isInstanceOf(view, "android.widget.SwitchButton")) {
+			return;
+		}
+		viewInfo.put("type", "Switch");
+		if (view instanceof CompoundButton) {
+			CompoundButton compoundButton = (CompoundButton) view;
+			viewInfo.put("checked", compoundButton.isChecked());
+			viewInfo.put("text", safeToString(compoundButton.getText()));
+			CompoundButton.OnCheckedChangeListener checkedListener = xView.getOnCheckedChangeListener();
+			if (checkedListener != null) {
+				viewInfo.put("on_checked_change_listener_clazz", checkedListener.getClass().getName());
+			}
+		}
+		Object textOn = invokeNoArg(view, "getTextOn");
+		Object textOff = invokeNoArg(view, "getTextOff");
+		if (textOn != null) {
+			viewInfo.put("textOn", safeToString(textOn));
+		}
+		if (textOff != null) {
+			viewInfo.put("textOff", safeToString(textOff));
+		}
+	}
+
+	private void fillReflectiveViewInfo(Map<String, Object> viewInfo, View view) {
+		if (isInstanceOf(view, "androidx.core.widget.NestedScrollView")) {
+			viewInfo.put("type", "NestedScrollView");
+			viewInfo.put("scroll_y", invokeNoArg(view, "getScrollY"));
+			viewInfo.put("scroll_x", invokeNoArg(view, "getScrollX"));
+		}
+		if (isInstanceOf(view, "androidx.drawerlayout.widget.DrawerLayout")) {
+			viewInfo.put("type", "DrawerLayout");
+			viewInfo.put("drawer_open", invokeIntArg(view, "isDrawerOpen", 8388611));
+		}
+		if (isInstanceOf(view, "com.google.android.material.tabs.TabLayout")) {
+			viewInfo.put("type", "TabLayout");
+			viewInfo.put("tab_count", invokeNoArg(view, "getTabCount"));
+			viewInfo.put("selected_tab_position", invokeNoArg(view, "getSelectedTabPosition"));
+		}
+		if (isInstanceOf(view, "androidx.fragment.app.FragmentContainerView")) {
+			viewInfo.put("type", "FragmentContainerView");
+		}
+		if (isInstanceOf(view, "androidx.compose.ui.platform.ComposeView")) {
+			viewInfo.put("type", "ComposeView");
+		}
+		if (isInstanceOf(view, "android.view.SurfaceView")) {
+			viewInfo.put("type", "SurfaceView");
+		}
+		if (isInstanceOf(view, "com.google.android.gms.maps.MapView")) {
+			viewInfo.put("type", "MapView");
+		}
+	}
+
+	private boolean isInstanceOf(Object obj, String className) {
+		try {
+			return Class.forName(className).isInstance(obj);
+		} catch (Exception e) {
+			return false;
+		}
+	}
+
+	private Object invokeNoArg(Object obj, String methodName) {
+		try {
+			return obj.getClass().getMethod(methodName).invoke(obj);
+		} catch (Exception e) {
+			return null;
+		}
+	}
+
+	private Object invokeIntArg(Object obj, String methodName, int arg) {
+		try {
+			return obj.getClass().getMethod(methodName, int.class).invoke(obj, Integer.valueOf(arg));
+		} catch (Exception e) {
+			return null;
+		}
+	}
+
+	private String resolveViewIdName(Activity activity, int viewId) {
+		try {
+			return activity.getResources().getResourceEntryName(viewId);
+		} catch (Exception e) {
+			return "0x" + Integer.toHexString(viewId);
+		}
 	}
 
 	@HookerRequestMapping(path = "set_text", produces = Produces.AUTO, method = Method.GET)
@@ -685,11 +1330,17 @@ public class BuiltinUIServiceController {
 	    int h = drawable.getIntrinsicHeight();
 	    if (w >= 40 && h >= 40) {
 	    	Bitmap bitmap = drawableToBitmap(drawable);
+	    	if (bitmap == null) {
+	    		return false;
+	    	}
 		    FileOutputStream fos = new FileOutputStream(outFile);
-		    bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos);
-		    fos.flush();
-		    fos.close();
-		    return true;
+		    try {
+		    	boolean compressed = bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos);
+		    	fos.flush();
+		    	return compressed;
+		    } finally {
+		    	fos.close();
+		    }
 	    }
 	    return false;
 	}

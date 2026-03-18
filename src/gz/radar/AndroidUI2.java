@@ -3,7 +3,9 @@ package gz.radar;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import android.app.Activity;
 import android.view.SurfaceView;
@@ -33,20 +35,28 @@ public class AndroidUI2 {
 	private static Logger logger = new Logger(AndroidUI2.class);
 
 	public static List<View> collectImportantViews(View root) {
-		List<View> result = new ArrayList<>();
+		Set<View> result = new LinkedHashSet<View>();
 		traverse(root, result);
-		return result;
+		return new ArrayList<View>(result);
 	}
 
-	private static void traverse(View v, List<View> out) {
+	private static void traverse(View v, Set<View> out) {
 		if (v == null)
 			return;
 		if (v.getVisibility() != View.VISIBLE)
 			return;
 		
 		if (isImportantView(v)) {
-	        out.add(v);
+	        addIfAbsent(out, v);
 	    }
+
+		if (isSuspiciousVideoContainer(v)) {
+			addIfAbsent(out, v);
+		}
+
+		if (isVideoLikeView(v)) {
+			collectVideoAncestors(v, out);
+		}
 
 		if (v instanceof ViewGroup) {
 			ViewGroup group = (ViewGroup) v;
@@ -79,9 +89,63 @@ public class AndroidUI2 {
 	            || isWebView(v)
 	            || isMaterialView(v)
 	            || isToolbar(v)
-	            || v instanceof VideoView
-	            || v instanceof SurfaceView
-	            || v instanceof TextureView;
+		            || v instanceof VideoView
+		            || v instanceof SurfaceView
+		            || v instanceof TextureView;
+	}
+
+	private static boolean isVideoLikeView(View v) {
+		return v instanceof SurfaceView
+				|| v instanceof TextureView
+				|| v instanceof VideoView
+				|| isWebView(v)
+				|| containsAny(v.getClass().getName().toLowerCase(), "video", "player", "render", "surface", "texture");
+	}
+
+	private static void collectVideoAncestors(View view, Set<View> out) {
+		View current = view;
+		int depth = 0;
+		while (current != null && current.getParent() instanceof View && depth < 5) {
+			View parent = (View) current.getParent();
+			if (isSuspiciousVideoContainer(parent)) {
+				addIfAbsent(out, parent);
+			}
+			current = parent;
+			depth++;
+		}
+	}
+
+	private static boolean isSuspiciousVideoContainer(View v) {
+		if (!(v instanceof ViewGroup)) {
+			return false;
+		}
+		String className = v.getClass().getName().toLowerCase();
+		boolean nameMatched = containsAny(className,
+				"video", "feed", "player", "pinch", "pager", "swipe", "scroll", "container", "cover");
+		boolean sizeMatched = v.getWidth() >= 300 && v.getHeight() >= 300;
+		boolean scrollCandidate = isViewPager(v) || isViewPager2(v) || isRecyclerView(v)
+				|| v instanceof ScrollView || v instanceof HorizontalScrollView
+				|| containsAny(className, "recyclerview", "viewpager");
+		return (nameMatched && sizeMatched) || scrollCandidate;
+	}
+
+	private static boolean containsAny(String text, String... keywords) {
+		if (text == null || keywords == null) {
+			return false;
+		}
+		for (String keyword : keywords) {
+			if (keyword != null && text.contains(keyword)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static void addIfAbsent(Set<View> out, View view) {
+		if (view == null) {
+			return;
+		}
+		out.add(view);
 	}
 	
 	private static boolean isInstanceOf(View v, String clz) {

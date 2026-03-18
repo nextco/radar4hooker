@@ -63,7 +63,12 @@ public abstract class HookerWebServer extends NanoHTTPD {
 	@Override
 	public void stop() {
 		super.stop();
-		System.getProperties().setProperty("hooker_server_flag", null);
+		System.getProperties().remove("hooker_server_flag");
+		try {
+			AndroidUI.showToast("webserver已关闭");
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 	}
 	
 }
