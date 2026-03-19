@@ -2,6 +2,7 @@ package gz.httpserver.controller;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -107,21 +108,6 @@ public class BuiltinUIServiceController {
 				AndroidUI.home();
 			}
 		});
-	}
-
-	@HookerRequestMapping(path = "screenshot_current", produces = Produces.AUTO, method = Method.GET)
-	public Response screenshot_current(MustangServlet servlet) throws Exception {
-		Activity activity = Android.getTopActivity();
-		if (activity == null) {
-			return servlet.newNotFound("top activity not found");
-		}
-		File screenshotFile = new File(BuiltinFileServiceController.tempFileDir,
-				"screen_current.png");
-		Bitmap bitmap = captureWindowByPixelCopy(activity);
-		if (saveBitmapToFile(bitmap, screenshotFile)) {
-			return servlet.newFileResponse(screenshotFile);
-		}
-		return servlet.newServerError("save screenshot failed");
 	}
 
 	@HookerRequestMapping(path = "click_by_text", produces = Produces.AUTO)
@@ -287,7 +273,7 @@ public class BuiltinUIServiceController {
 	}
 	
 	@HookerRequestMapping(path = "rv_scroll_by", produces = Produces.AUTO)
-	public Map<String, Object> rvscrollBy(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "x") Integer x, @HookerRequestParam(name = "y") Integer y)
+	public Map<String, Object> scrollRecyclerBy(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "x") Integer x, @HookerRequestParam(name = "y") Integer y)
 			throws Exception {
 		androidx.recyclerview.widget.RecyclerView rv = requireView(id, RecyclerView.class, "RecyclerView");
 		AndroidUI.scrollBy(rv, x, y);
@@ -297,23 +283,23 @@ public class BuiltinUIServiceController {
 		return result;
 	}
 	
-	@HookerRequestMapping(path = "rv_scroll_to_position", produces = Produces.AUTO)
-	public Map<String, Object> rvscrollToPosition(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "position", defaultValue = "0") Integer position)
+	@HookerRequestMapping(path = "scroll_recycler_to_position", produces = Produces.AUTO)
+	public Map<String, Object> scrollRecyclerToPosition(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "position", defaultValue = "0") Integer position)
 			throws Exception {
 		androidx.recyclerview.widget.RecyclerView rv = requireView(id, RecyclerView.class, "RecyclerView");
 		AndroidUI.scrollToPosition(rv, position);
-		Map<String, Object> result = successResult("rv_scroll_to_position", rv, id);
+		Map<String, Object> result = successResult("scroll_recycler_to_position", rv, id);
 		result.put("position", position);
 		return result;
 	}
 	
 	
-	@HookerRequestMapping(path = "rv_smooth_scroll_to_position", produces = Produces.AUTO)
-	public Map<String, Object> rvsmoothScrollToPosition(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "position", defaultValue = "0") Integer position)
+	@HookerRequestMapping(path = "smooth_scroll_recycler_to_position", produces = Produces.AUTO)
+	public Map<String, Object> smoothScrollRecyclerToPosition(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "position", defaultValue = "0") Integer position)
 			throws Exception {
 		androidx.recyclerview.widget.RecyclerView rv = requireView(id, RecyclerView.class, "RecyclerView");
 		AndroidUI.smoothScrollToPosition(rv, position);
-		Map<String, Object> result = successResult("rv_smooth_scroll_to_position", rv, id);
+		Map<String, Object> result = successResult("smooth_scroll_recycler_to_position", rv, id);
 		result.put("position", position);
 		return result;
 	}
@@ -350,7 +336,26 @@ public class BuiltinUIServiceController {
 	}
 
 	@HookerRequestMapping(path = "inspect", produces = Produces.AUTO, method = Method.GET)
-	public Object inspect(@HookerRequestParam(name = "format", defaultValue = "html") String format) throws Exception {
+	public Object inspect(@HookerRequestParam(name = "format", defaultValue = "html") String format,
+			@HookerRequestParam(name = "text_contains", defaultValue = "") String textContains,
+			@HookerRequestParam(name = "position_limit", defaultValue = "0,0,0,0") String positionLimit,
+			@HookerRequestParam(name = "view_type", defaultValue = "") String viewType,
+			@HookerRequestParam(name = "class_name", defaultValue = "") String className,
+			@HookerRequestParam(name = "class_name_contains", defaultValue = "") String classNameContains,
+			@HookerRequestParam(name = "resource_id", defaultValue = "") String resourceId,
+			@HookerRequestParam(name = "id_contains", defaultValue = "") String idContains,
+			@HookerRequestParam(name = "content_desc_contains", defaultValue = "") String contentDescContains,
+			@HookerRequestParam(name = "clickable", defaultValue = "-1") int clickable,
+			@HookerRequestParam(name = "shown_only", defaultValue = "0") int shownOnly,
+			@HookerRequestParam(name = "enabled_only", defaultValue = "0") int enabledOnly,
+			@HookerRequestParam(name = "min_width", defaultValue = "0") int minWidth,
+			@HookerRequestParam(name = "min_height", defaultValue = "0") int minHeight,
+			@HookerRequestParam(name = "limit", defaultValue = "0") int limit,
+			@HookerRequestParam(name = "is_image", defaultValue = "0") int isImage,
+			@HookerRequestParam(name = "is_edittext", defaultValue = "0") int isEditText,
+			@HookerRequestParam(name = "is_listview", defaultValue = "0") int isListView,
+			@HookerRequestParam(name = "is_scrollview", defaultValue = "0") int isScrollView
+			) throws Exception {
 		Map<String, Object> result = new HashMap<String, Object>();
 		List<Map<String, Object>> views = new ArrayList<Map<String, Object>>();
 		Activity activity = Android.getTopActivity();
@@ -367,10 +372,12 @@ public class BuiltinUIServiceController {
 			viewInfo.put("is_selected", view.isSelected());
 			viewInfo.put("is_shown", view.isShown());
 			viewInfo.put("alpha", view.getAlpha());
-			viewInfo.put("width", view.getWidth());
-			viewInfo.put("height", view.getHeight());
-			viewInfo.put("x", view.getX());
-			viewInfo.put("y", view.getY());
+			Map<String, Object> rectangle = new HashMap<String, Object>();
+			rectangle.put("width", view.getWidth());
+			rectangle.put("height", view.getHeight());
+			rectangle.put("x", view.getX());
+			rectangle.put("y", view.getY());
+			viewInfo.put("rectangle", rectangle);
 			viewInfo.put("content_description", safeToString(view.getContentDescription()));
 			viewInfo.put("parent_class", view.getParent() == null ? null : view.getParent().getClass().getName());
 			XView xView = new XView(view);
@@ -706,6 +713,10 @@ public class BuiltinUIServiceController {
 			result.put("views", views);
 			return result;
 		}
+	}
+
+	public Object inspect(String format) throws Exception {
+		return inspect(format, "", "0,0,0,0", "", "", "", "", "", "", -1, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 	}
 	
 	private String renderViewsHtml(Activity activity, List<Map<String, Object>> views) {
@@ -1517,6 +1528,47 @@ public class BuiltinUIServiceController {
 			return copyResult.get() == PixelCopy.SUCCESS ? bitmap : null;
 		} finally {
 			thread.quitSafely();
+		}
+	}
+
+	private byte[] captureByScreenCap() throws Exception {
+		Process process = null;
+		try {
+			process = new ProcessBuilder("/system/bin/sh", "-c", "screencap -p").start();
+			byte[] pngBytes = readAll(process.getInputStream());
+			byte[] errorBytes = readAll(process.getErrorStream());
+			int exitCode = process.waitFor();
+			if (exitCode != 0) {
+				throw new IllegalStateException("screencap failed, exitCode=" + exitCode + ", stderr="
+						+ new String(errorBytes, "UTF-8"));
+			}
+			if (pngBytes == null || pngBytes.length == 0) {
+				throw new IllegalStateException("screencap returned empty output, stderr="
+						+ new String(errorBytes, "UTF-8"));
+			}
+			return pngBytes;
+		} finally {
+			if (process != null) {
+				process.destroy();
+			}
+		}
+	}
+
+	private byte[] readAll(InputStream inputStream) throws Exception {
+		java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+		try {
+			byte[] buffer = new byte[8192];
+			int len;
+			while ((len = inputStream.read(buffer)) != -1) {
+				baos.write(buffer, 0, len);
+			}
+			return baos.toByteArray();
+		} finally {
+			try {
+				inputStream.close();
+			} catch (Exception e) {
+			}
+			baos.close();
 		}
 	}
 	

@@ -68,7 +68,30 @@ HTML 页面内支持直接操作：
 - `/hooker/ui/back`
 - `/hooker/ui/home`
 
-### 3. 类辅助能力
+### 3. 独立窗口树导出
+
+新增一套不依赖旧 `AndroidUI.viewTree()` 的导出接口，直接遍历当前前台 Activity 的 `DecorView`：
+
+- `/hooker/uiauto/dump?format=xml`
+- `/hooker/uiauto/dump?format=json`
+- `/hooker/uiauto/window_dump.xml`
+- `/hooker/uiauto/window_dump.json`
+
+输出风格接近 `adb shell uiautomator dump`，包含：
+
+- `class`
+- `resource-id`
+- `text`
+- `content-desc`
+- `bounds`
+- `clickable`
+- `enabled`
+- `focusable`
+- `selected`
+- `visible-to-user`
+- `hooker-id`
+
+### 4. 类辅助能力
 
 例如：
 

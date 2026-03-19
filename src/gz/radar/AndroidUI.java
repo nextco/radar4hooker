@@ -51,7 +51,6 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 import org.xmlpull.v1.XmlPullParser;
 
-import gz.radar.ViewXmlDumper.XmlDumpResult;
 import gz.radar.objects.ViewInfo;
 import gz.util.X;
 import gz.util.XLog;
@@ -433,28 +432,6 @@ public class AndroidUI {
         }
     }
     
-    private static XmlDumpResult getXmlDumpResult() throws Exception {
-    	Activity activity = Android.getTopActivity();
-        return ViewXmlDumper.viewToXml(activity.getWindow().getDecorView());
-    }
-
-    public static String viewTree() throws Exception {
-        Document document = getXmlDumpResult().getDocument();
-        Transformer transformer = TransformerFactory.newInstance().newTransformer();
-        StringWriter writer = new StringWriter();
-        transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "no"); // 可选，是否省略头
-        transformer.setOutputProperty(OutputKeys.INDENT, "yes");              // 可选，是否缩进
-        transformer.transform(new DOMSource(document), new StreamResult(writer));
-        String xmlString = writer.toString();
-        return xmlString;
-    }
-    
-    public static void listImportantViews() throws Exception {
-        Document document = getXmlDumpResult().getDocument();
-    	XPath xPath = XPathFactory.newInstance().newXPath();
-    	//NodeList nodes = (NodeList) xPath.evaluate("//node[@class='xxx']", doc, XPathConstants.NODESET);
-    }
-    
     public static String getAttributeByKey(String key, Node node) {
         if (node == null || key == null) return null;
 
@@ -466,32 +443,6 @@ public class AndroidUI {
             }
         }
         return null; // 没找到
-    }
-
-    public static List<View> findViewsByXpath(String xpath) throws Exception {
-    	XmlDumpResult xmlDumpResult = getXmlDumpResult();
-    	Document document = xmlDumpResult.getDocument();
-    	XPath xPath = XPathFactory.newInstance().newXPath();
-    	NodeList nodes = (NodeList) xPath.evaluate(xpath, document, XPathConstants.NODESET);
-    	List<View> results = new ArrayList<View>();
-    	for(int i = 0; nodes != null && i < nodes.getLength(); i ++) {
-    		Node node = nodes.item(i);
-    		String hashCode = getAttributeByKey("hash_code", node);
-    		View view = xmlDumpResult.getView(hashCode);
-    		if (view != null) {
-    			results.add(view);
-    		}
-    	}
-    	return results;
-    }
-    
-    public static String showViews(String xpath) throws Exception {
-    	List<View> views = findViewsByXpath(xpath);
-    	StringBuilder info = new StringBuilder();
-    	for (View view : views) {
-    		info.append(new ViewInfo(view).toString());
-    	}
-    	return info.toString();
     }
 
     public static boolean clickByText(String text) throws Exception {

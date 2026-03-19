@@ -24,6 +24,9 @@ import gz.httpserver.controller.BuiltinUIServiceController;
 import gz.httpserver.controller.BuiltinUIMcpController;
 import gz.httpserver.controller.BuiltinClassHelperController;
 import gz.httpserver.controller.BuiltinFileServiceController;
+import gz.httpserver.controller.BuiltinMediaProjectionController;
+import gz.httpserver.controller.BuiltinScreenCapController;
+import gz.httpserver.controller.BuiltinUIAutomatorDumpController;
 import gz.httpserver.mustang.MustangAutoWireServlet;
 import gz.httpserver.mustang.MustangWebServer;
 import gz.radar.Android;
@@ -98,12 +101,28 @@ public class HookerWebServerBoot {
 		return startWithPort(port, httpServerClassList, controllerClzList);
 	}
 	
+	private static void stopLastServer() {
+		String lastPort = (String) System.getProperties().get("hooker_server_flag");
+		try {
+			MustangWebServer lastServer = MustangWebServer.getInstance();
+			if (lastServer != null) {
+				lastServer.stop();
+				logger.info("stop last webserver, old port=" + lastPort);
+				return;
+			}
+		} catch (Exception e) {
+			logger.warn(e);
+		}
+		System.getProperties().remove("hooker_server_flag");
+		logger.warn("last webserver flag exists but instance missing, old port=" + lastPort);
+	}
+	
 	private static String startWithPort(int port, List<Class<?>> httpServerClassList, List<Class<?>> controllerClzList) throws Exception {
 		String hooker_server_flag = (String) System.getProperties().get("hooker_server_flag");
 		if (hooker_server_flag != null) {
-			return "Webserver is already started";
+			stopLastServer();
 		}
-		System.getProperties().setProperty("hooker_server_flag", "true");
+		System.getProperties().setProperty("hooker_server_flag", String.valueOf(port));
 		String info = "";
 		info += "Http server port: " + port + "\n";
 		String lanIP = getLanIp();
@@ -114,6 +133,9 @@ public class HookerWebServerBoot {
 		
 		controllerClzList.add(BuiltinServiceController.class);
 		controllerClzList.add(BuiltinUIServiceController.class);
+		controllerClzList.add(BuiltinMediaProjectionController.class);
+		controllerClzList.add(BuiltinScreenCapController.class);
+		controllerClzList.add(BuiltinUIAutomatorDumpController.class);
 		controllerClzList.add(BuiltinUIMcpController.class);
 		controllerClzList.add(BuiltinAppInfoController.class);
 		controllerClzList.add(BuiltinClassHelperController.class);

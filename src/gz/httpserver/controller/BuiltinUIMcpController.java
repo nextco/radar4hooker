@@ -15,6 +15,8 @@ import gz.httpserver.annotation.HookerRequestPostJson;
 public class BuiltinUIMcpController {
 
 	private final BuiltinUIServiceController uiController = new BuiltinUIServiceController();
+	private final BuiltinAppInfoController appInfoController = new BuiltinAppInfoController();
+	private final BuiltinMediaProjectionController mediaProjectionController = new BuiltinMediaProjectionController();
 
 	@HookerRequestMapping(path = "tools", produces = Produces.AUTO, method = Method.GET)
 	public Map<String, Object> tools() {
@@ -76,7 +78,7 @@ public class BuiltinUIMcpController {
 			return uiController.viewPageSwipe(required(arguments, "id"), stringValue(arguments.get("direction"), "next"));
 		}
 		if ("scroll_recycler_by".equals(name)) {
-			return uiController.rvscrollBy(required(arguments, "id"), intValue(arguments.get("x"), 0),
+			return uiController.scrollRecyclerBy(required(arguments, "id"), intValue(arguments.get("x"), 0),
 					intValue(arguments.get("y"), 0));
 		}
 		if ("scroll_recycler_to_position".equals(name)) {
@@ -84,9 +86,31 @@ public class BuiltinUIMcpController {
 			int position = intValue(arguments.get("position"), 0);
 			boolean smooth = booleanValue(arguments.get("smooth"), false);
 			if (smooth) {
-				return uiController.rvsmoothScrollToPosition(id, position);
+				return uiController.smoothScrollRecyclerToPosition(id, position);
 			}
-			return uiController.rvscrollToPosition(id, position);
+			return uiController.scrollRecyclerToPosition(id, position);
+		}
+		if ("get_app_info".equals(name)) {
+			return appInfoController.app_info();
+		}
+		if ("request_media_projection_permission".equals(name)) {
+			return mediaProjectionController.requestPermission();
+		}
+		if ("get_media_projection_status".equals(name)) {
+			return mediaProjectionController.status();
+		}
+		if ("capture_media_projection_screenshot".equals(name)) {
+			return mediaProjectionController.screenshotForMcp();
+		}
+		if ("get_shared_prefs".equals(name)) {
+			return appInfoController.shared_prefs();
+		}
+		if ("get_databases".equals(name)) {
+			return appInfoController.databases();
+		}
+		if ("read_database_table".equals(name)) {
+			return appInfoController.read_table(required(arguments, "database"), required(arguments, "table"),
+					intValue(arguments.get("limit"), 100));
 		}
 		throw new IllegalArgumentException("unknown tool: " + name);
 	}
@@ -114,6 +138,16 @@ public class BuiltinUIMcpController {
 		tools.add(tool("scroll_recycler_to_position", "滚动 RecyclerView 到指定 position。",
 				schema(prop("id", "string", true, "RecyclerView id"), prop("position", "integer", true, "目标位置"),
 						prop("smooth", "boolean", false, "是否平滑滚动"))));
+		tools.add(tool("get_app_info", "获取当前 App 的基础信息、组件、权限、签名和常见目录。", schema()));
+		tools.add(tool("request_media_projection_permission", "发起 MediaProjection 动态授权请求，设备上会弹系统确认框。", schema()));
+		tools.add(tool("get_media_projection_status", "查询 MediaProjection 当前授权状态。", schema()));
+		tools.add(tool("capture_media_projection_screenshot", "使用 MediaProjection 截取整屏 PNG；调用前需要先完成授权。", schema()));
+		tools.add(tool("get_shared_prefs", "读取当前 App 的 shared_prefs 内容。", schema()));
+		tools.add(tool("get_databases", "列出当前 App 的数据库、表和字段结构。", schema()));
+		tools.add(tool("read_database_table", "读取指定数据库表的数据，适合排查本地缓存和业务状态。",
+				schema(prop("database", "string", true, "数据库文件名，例如 xxx.db"),
+						prop("table", "string", true, "表名"),
+						prop("limit", "integer", false, "最多读取多少行，默认 100，最大 1000"))));
 		return tools;
 	}
 
