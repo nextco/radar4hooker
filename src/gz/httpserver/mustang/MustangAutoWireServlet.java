@@ -50,10 +50,13 @@ public class MustangAutoWireServlet extends MustangServlet {
 					name = hookerRquestParam.name();
 				}
 				String value = request.getParam(name);
-				if ((value == null || value.isEmpty())) {
+				if ((value == null)) {
 					value = hookerRquestParam.defaultValue();
+					if (HookerRequestParam.NO_DEFAULT_VALUE.equals(value)) {
+						value = null;
+					}
 				}
-				if ((value == null || value.isEmpty()) && hookerRquestParam.required()) {
+				if (value == null && hookerRquestParam.required()) {
 					throw new IllegalArgumentException("Missing request param: " + name);
 				}
 				args[i] = convert(value, reflectParam.getType());

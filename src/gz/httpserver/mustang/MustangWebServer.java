@@ -196,7 +196,9 @@ public class MustangWebServer extends HookerWebServer {
 				.append(")");
 			desc.append(" required=")
 				.append(hookerRequestParam.required());
-			if (hookerRequestParam.defaultValue() != null && !hookerRequestParam.defaultValue().isEmpty()) {
+			if (hookerRequestParam.defaultValue() != null
+					&& !hookerRequestParam.defaultValue().isEmpty()
+					&& !HookerRequestParam.NO_DEFAULT_VALUE.equals(hookerRequestParam.defaultValue())) {
 				desc.append(" default=")
 					.append(hookerRequestParam.defaultValue());
 			}

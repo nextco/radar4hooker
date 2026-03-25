@@ -1,7 +1,5 @@
 package gz.httpserver.controller;
 
-import java.io.File;
-import java.io.FileOutputStream;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -47,20 +45,10 @@ public class BuiltinMediaProjectionController {
 			result.put("endpoint", "/hooker/mediaprojection/screenshot");
 			return result;
 		}
-		byte[] pngBytes = manager.captureScreenshot();
-		File outFile = new File(BuiltinFileServiceController.tempFileDir, "mediaprojection_screenshot.png");
-		FileOutputStream fos = new FileOutputStream(outFile);
-		try {
-			fos.write(pngBytes);
-			fos.flush();
-		} finally {
-			fos.close();
-		}
 		result.put("ok", true);
 		result.put("content_type", "image/png");
-		result.put("size", Integer.valueOf(pngBytes.length));
-		result.put("file", outFile.getAbsolutePath());
-		result.put("url", "/hooker/file?filename=" + outFile.getName());
+		result.put("stream", true);
+		result.put("message", "Call /hooker/mediaprojection/screenshot to receive PNG bytes directly.");
 		result.put("endpoint", "/hooker/mediaprojection/screenshot");
 		return result;
 	}

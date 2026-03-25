@@ -137,8 +137,8 @@ public class AndroidUI {
      * @param y
      * @param stepLength
      */
-    public static void hover(final float x,final float y,final int stepLength) {
-        Runnable runnable = new Runnable() {
+	    public static void hover(final float x,final float y,final int stepLength) {
+	        Runnable runnable = new Runnable() {
             @Override
             public void run() {
                 Instrumentation iso= new Instrumentation();
@@ -154,11 +154,28 @@ public class AndroidUI {
             new Thread(runnable).start();
         }else{
             runnable.run();
-        }
-    }
-    
-    public static void showToast(final String text) throws Exception {
-    	Android.getTopActivity().runOnUiThread(new Runnable() {
+	        }
+	    }
+
+	    public static void tap(final float x, final float y) {
+	        Runnable runnable = new Runnable() {
+	            @Override
+	            public void run() {
+	                Instrumentation iso = new Instrumentation();
+	                long downTime = SystemClock.uptimeMillis();
+	                iso.sendPointerSync(MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, x, y, 0));
+	                iso.sendPointerSync(MotionEvent.obtain(downTime, downTime + 40, MotionEvent.ACTION_UP, x, y, 0));
+	            }
+	        };
+	        if (Thread.currentThread().getId() <= 2) {
+	            new Thread(runnable).start();
+	        } else {
+	            runnable.run();
+	        }
+	    }
+	    
+	    public static void showToast(final String text) throws Exception {
+	    	Android.getTopActivity().runOnUiThread(new Runnable() {
 			@Override
 			public void run() {
 				try {
@@ -459,10 +476,10 @@ public class AndroidUI {
         return performClick(view);
     }
     
-    public static boolean performClick(View view) {
-    	 if (view  != null) {
-             while (true) {
-                 if (view.isClickable()) {
+	    public static boolean performClick(View view) {
+	    	 if (view  != null) {
+	             while (true) {
+	                 if (view.isClickable()) {
                      final View clickableView = view;
                      Runnable runnable = new Runnable() {
                          @Override
@@ -470,17 +487,18 @@ public class AndroidUI {
                              clickableView.performClick();
                          }
                      };
-                     clickableView.post(runnable);
-                     return true;
-                 }
-                 view = (View) view.getParent();
-                 if (view == null) {
-                     break;
-                 }
-             }
-         }
-    	 return false;
-    }
+	                     clickableView.post(runnable);
+	                     return true;
+	                 }
+	                 android.view.ViewParent parent = view.getParent();
+	                 if (!(parent instanceof View)) {
+	                     break;
+	                 }
+	                 view = (View) parent;
+	             }
+	         }
+	    	 return false;
+	    }
 
     public static <T extends View> T findViewByText(View decorView, String text) {
         return findViewByText(decorView, text, false, false);

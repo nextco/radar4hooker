@@ -18,6 +18,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Point;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
@@ -25,7 +26,10 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
+import android.util.DisplayMetrics;
+import android.content.res.Configuration;
 import android.view.PixelCopy;
+import android.view.Display;
 import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
@@ -71,7 +75,7 @@ import gz.httpserver.annotation.HookerRequestPostJson;
 import gz.httpserver.mustang.MustangServlet;
 import gz.radar.Android;
 import gz.radar.AndroidUI;
-import gz.radar.AndroidUI2;
+import gz.radar.InspectUI;
 import gz.util.Logger;
 import gz.util.XView;
 
@@ -110,6 +114,58 @@ public class BuiltinUIServiceController {
 		});
 	}
 
+	@HookerRequestMapping(path = "screen_info", produces = Produces.AUTO, method = Method.GET)
+	public Map<String, Object> screen_info() throws Exception {
+		return runOnMainThread(new ValueCallable<Map<String, Object>>() {
+			@Override
+			public Map<String, Object> call() throws Exception {
+				Map<String, Object> result = new HashMap<String, Object>();
+				Activity activity = Android.getTopActivity();
+				if (activity == null) {
+					result.put("ok", false);
+					result.put("error", "top activity is null");
+					return result;
+				}
+
+				DisplayMetrics metrics = activity.getResources().getDisplayMetrics();
+				Display display = activity.getWindowManager().getDefaultDisplay();
+				Point displaySize = new Point();
+				Point realSize = new Point();
+				try {
+					display.getSize(displaySize);
+				} catch (Throwable e) {
+					displaySize.set(metrics.widthPixels, metrics.heightPixels);
+				}
+				try {
+					display.getRealSize(realSize);
+				} catch (Throwable e) {
+					realSize.set(displaySize.x, displaySize.y);
+				}
+
+				View decorView = activity.getWindow().getDecorView();
+				Map<String, Object> appWindow = new HashMap<String, Object>();
+				appWindow.put("width", decorView.getWidth());
+				appWindow.put("height", decorView.getHeight());
+
+				result.put("ok", true);
+				result.put("top_activity", activity.getClass().getName());
+				result.put("display_width", displaySize.x);
+				result.put("display_height", displaySize.y);
+				result.put("real_display_width", realSize.x);
+				result.put("real_display_height", realSize.y);
+				result.put("density", metrics.density);
+				result.put("density_dpi", metrics.densityDpi);
+				result.put("scaled_density", metrics.scaledDensity);
+				result.put("xdpi", metrics.xdpi);
+				result.put("ydpi", metrics.ydpi);
+				result.put("orientation", orientationName(activity.getResources().getConfiguration().orientation));
+				result.put("rotation", display.getRotation());
+				result.put("app_window", appWindow);
+				return result;
+			}
+		});
+	}
+
 	@HookerRequestMapping(path = "click_by_text", produces = Produces.AUTO)
 	public Map<String, Object> click_by_text(@HookerRequestParam(name = "text") final String text,
 			@HookerRequestParam(name = "text_equeal", defaultValue = "false") boolean mustBeTextEqueal,
@@ -134,6 +190,20 @@ public class BuiltinUIServiceController {
 		logger.info("view: " + view.getClass().getName());
 		AndroidUI.performClick(view);
 		return successResult("click_by_id", view, id);
+	}
+
+	@HookerRequestMapping(path = "click_by_position", produces = Produces.AUTO, method = Method.GET)
+	public Map<String, Object> click_by_position(@HookerRequestParam(name = "x") final int x,
+			@HookerRequestParam(name = "y") final int y) throws Exception {
+		Map<String, Object> result = runAction("click_by_position", new UIAction() {
+			@Override
+			public void run() throws Exception {
+				AndroidUI.tap(x, y);
+			}
+		});
+		result.put("x", Integer.valueOf(x));
+		result.put("y", Integer.valueOf(y));
+		return result;
 	}
 
 	@HookerRequestMapping(path = "show_toast", produces = Produces.AUTO)
@@ -267,12 +337,12 @@ public class BuiltinUIServiceController {
 		return runAction("try_to_dismiss_dialog", new UIAction() {
 			@Override
 			public void run() throws Exception {
-				AndroidUI2.tryDismissByDialogFragment();
+				InspectUI.tryDismissByDialogFragment();
 			}
 		});
 	}
 	
-	@HookerRequestMapping(path = "rv_scroll_by", produces = Produces.AUTO)
+	@HookerRequestMapping(path = "recycler_view_scroll_by", produces = Produces.AUTO)
 	public Map<String, Object> scrollRecyclerBy(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "x") Integer x, @HookerRequestParam(name = "y") Integer y)
 			throws Exception {
 		androidx.recyclerview.widget.RecyclerView rv = requireView(id, RecyclerView.class, "RecyclerView");
@@ -335,22 +405,29 @@ public class BuiltinUIServiceController {
 		return result;
 	}
 
+	/**
+	 * 检查当前界面的重要 View，并返回可用于后续操作的 hooker_id。
+	 *
+	 * @param format 返回格式，支持 html 和 json；MCP 场景建议使用 json
+	 * @param textContains 按文本包含匹配，匹配 TextView 的 text/hint 以及 View 的 contentDescription，大小写不敏感
+	 * @param rectLimit 屏幕矩形过滤，格式为 left,top,right,bottom；与该区域有交集的 View 才会返回，0,0,0,0 表示不过滤
+	 * @param viewType 按 InspectUI.getViewType(view) 的结果精确匹配，大小写不敏感，例如 TextView、EditText、RecyclerView
+	 * @param className 按 View 的完整类名精确匹配，大小写不敏感，例如 android.widget.TextView
+	 * @param classNameContains 按 View 的完整类名做包含匹配，大小写不敏感
+	 * @param isImage 为 1 时只返回 ImageView / ImageButton
+	 * @param isEditText 为 1 时只返回 EditText
+	 * @param isListView 为 1 时只返回 ListView / GridView / RecyclerView
+	 * @param isScrollView 为 1 时只返回 ScrollView / HorizontalScrollView
+	 * @return html 字符串或包含 top_activity、title、views 的 json 对象
+	 * @throws Exception 采集 UI 信息失败时抛出
+	 */
 	@HookerRequestMapping(path = "inspect", produces = Produces.AUTO, method = Method.GET)
 	public Object inspect(@HookerRequestParam(name = "format", defaultValue = "html") String format,
 			@HookerRequestParam(name = "text_contains", defaultValue = "") String textContains,
-			@HookerRequestParam(name = "position_limit", defaultValue = "0,0,0,0") String positionLimit,
+			@HookerRequestParam(name = "rect_limit", defaultValue = "0,0,0,0") String rectLimit,
 			@HookerRequestParam(name = "view_type", defaultValue = "") String viewType,
 			@HookerRequestParam(name = "class_name", defaultValue = "") String className,
 			@HookerRequestParam(name = "class_name_contains", defaultValue = "") String classNameContains,
-			@HookerRequestParam(name = "resource_id", defaultValue = "") String resourceId,
-			@HookerRequestParam(name = "id_contains", defaultValue = "") String idContains,
-			@HookerRequestParam(name = "content_desc_contains", defaultValue = "") String contentDescContains,
-			@HookerRequestParam(name = "clickable", defaultValue = "-1") int clickable,
-			@HookerRequestParam(name = "shown_only", defaultValue = "0") int shownOnly,
-			@HookerRequestParam(name = "enabled_only", defaultValue = "0") int enabledOnly,
-			@HookerRequestParam(name = "min_width", defaultValue = "0") int minWidth,
-			@HookerRequestParam(name = "min_height", defaultValue = "0") int minHeight,
-			@HookerRequestParam(name = "limit", defaultValue = "0") int limit,
 			@HookerRequestParam(name = "is_image", defaultValue = "0") int isImage,
 			@HookerRequestParam(name = "is_edittext", defaultValue = "0") int isEditText,
 			@HookerRequestParam(name = "is_listview", defaultValue = "0") int isListView,
@@ -359,8 +436,8 @@ public class BuiltinUIServiceController {
 		Map<String, Object> result = new HashMap<String, Object>();
 		List<Map<String, Object>> views = new ArrayList<Map<String, Object>>();
 		Activity activity = Android.getTopActivity();
-		View rootView = activity.getWindow().getDecorView();
-		List<View> results = AndroidUI2.collectImportantViews(rootView);
+		List<View> results = InspectUI.collectImportantViews(activity, textContains, rectLimit, viewType,
+				className, classNameContains, isImage, isEditText, isListView, isScrollView);
 		for (View view : results) {
 			Map<String, Object> viewInfo = new HashMap<String, Object>();
 			viewInfo.put("is_focused", view.isFocused());
@@ -451,7 +528,7 @@ public class BuiltinUIServiceController {
 				viewInfo.put("rating_step_size", ratingBar.getStepSize());
 			}
 			
-			if (AndroidUI2.isViewPager(view)) {
+			if (InspectUI.isViewPager(view)) {
 				androidx.viewpager.widget.ViewPager viewPager = (androidx.viewpager.widget.ViewPager) view;
 				viewInfo.put("view_page_current_item", viewPager.getCurrentItem());
 				viewInfo.put("view_page_is_enabled", viewPager.isEnabled());
@@ -461,14 +538,14 @@ public class BuiltinUIServiceController {
 				viewInfo.put("view_page_count", count);
 			}
 			
-			if (AndroidUI2.isViewPager2(view)) {
+			if (InspectUI.isViewPager2(view)) {
 				androidx.viewpager2.widget.ViewPager2 viewPager = (androidx.viewpager2.widget.ViewPager2) view;
 				viewInfo.put("view_page_current_item", viewPager.getCurrentItem());
 				viewInfo.put("view_page_is_enabled", viewPager.isEnabled());
 				viewInfo.put("view_page_super_class", "androidx.viewpager2.widget.ViewPager2");
 			}
 			
-			if (AndroidUI2.isRecyclerView(view)) {
+			if (InspectUI.isRecyclerView(view)) {
 				androidx.recyclerview.widget.RecyclerView rv = (androidx.recyclerview.widget.RecyclerView) view;
 				RecyclerView.Adapter adapter = rv.getAdapter();
 				if (adapter != null) {
@@ -701,7 +778,7 @@ public class BuiltinUIServiceController {
 				ViewGroup viewGroup = (ViewGroup) view;
 				viewInfo.put("child_count", viewGroup.getChildCount());
 			}
-			
+
 			views.add(viewInfo);
 		}
 		if (format.equals("html")) {
@@ -715,10 +792,6 @@ public class BuiltinUIServiceController {
 		}
 	}
 
-	public Object inspect(String format) throws Exception {
-		return inspect(format, "", "0,0,0,0", "", "", "", "", "", "", -1, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-	}
-	
 	private String renderViewsHtml(Activity activity, List<Map<String, Object>> views) {
 	    StringBuilder sb = new StringBuilder();
 	    int clickableCount = 0;
@@ -1226,6 +1299,19 @@ public class BuiltinUIServiceController {
 			return "GONE";
 		}
 		return String.valueOf(visibility);
+	}
+
+	private String orientationName(int orientation) {
+		if (orientation == Configuration.ORIENTATION_PORTRAIT) {
+			return "portrait";
+		}
+		if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
+			return "landscape";
+		}
+		if (orientation == Configuration.ORIENTATION_SQUARE) {
+			return "square";
+		}
+		return "undefined";
 	}
 
 	private void fillAdapterViewInfo(Map<String, Object> viewInfo, ListAdapter adapter) {

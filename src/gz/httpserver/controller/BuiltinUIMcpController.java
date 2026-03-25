@@ -51,10 +51,22 @@ public class BuiltinUIMcpController {
 
 	private Object callTool(String name, Map<String, Object> arguments) throws Exception {
 		if ("inspect_current_ui".equals(name)) {
-			return uiController.inspect(stringValue(arguments.get("format"), "json"));
+			return uiController.inspect(stringValue(arguments.get("format"), "json"),
+					stringValue(arguments.get("text_contains"), ""),
+					stringValue(arguments.get("rect_limit"), "0,0,0,0"),
+					stringValue(arguments.get("view_type"), ""),
+					stringValue(arguments.get("class_name"), ""),
+					stringValue(arguments.get("class_name_contains"), ""),
+					intValue(arguments.get("is_image"), 0),
+					intValue(arguments.get("is_edittext"), 0),
+					intValue(arguments.get("is_listview"), 0),
+					intValue(arguments.get("is_scrollview"), 0));
 		}
 		if ("click_view".equals(name)) {
 			return uiController.click_by_id(required(arguments, "id"));
+		}
+		if ("click_by_position".equals(name)) {
+			return uiController.click_by_position(intValue(arguments.get("x"), 0), intValue(arguments.get("y"), 0));
 		}
 		if ("set_text".equals(name)) {
 			return uiController.set_text(required(arguments, "id"), stringValue(arguments.get("text"), ""));
@@ -102,6 +114,9 @@ public class BuiltinUIMcpController {
 		if ("capture_media_projection_screenshot".equals(name)) {
 			return mediaProjectionController.screenshotForMcp();
 		}
+		if ("get_screen_info".equals(name)) {
+			return uiController.screen_info();
+		}
 		if ("get_shared_prefs".equals(name)) {
 			return appInfoController.shared_prefs();
 		}
@@ -117,28 +132,42 @@ public class BuiltinUIMcpController {
 
 	private List<Map<String, Object>> buildTools() {
 		List<Map<String, Object>> tools = new ArrayList<Map<String, Object>>();
-		tools.add(tool("inspect_current_ui", "获取当前界面结构和 hooker_id。",
-				schema(prop("format", "string", false, "返回格式，建议 json"))));
-		tools.add(tool("click_view", "按 hooker_id 或资源 id 点击控件。",
+		String actionVerifyHint = "执行后应立即调用 capture_media_projection_screenshot（底层接口 /hooker/mediaprojection/screenshot）观察界面变化，确认操作是否成功。";
+		tools.add(tool("inspect_current_ui", "获取当前界面的重要 View 列表和 hooker_id，支持按文本、矩形区域、视图类型、类名以及常见控件类别过滤。",
+				schema(prop("format", "string", false, "返回格式，建议 json"),
+						prop("text_contains", "string", false, "按 text/hint/contentDescription 做包含匹配，大小写不敏感"),
+						prop("rect_limit", "string", false, "屏幕区域过滤，格式 left,top,right,bottom"),
+						prop("view_type", "string", false, "按视图类型精确匹配，例如 TextView、EditText、RecyclerView"),
+						prop("class_name", "string", false, "按完整类名精确匹配，例如 android.widget.TextView"),
+						prop("class_name_contains", "string", false, "按完整类名包含匹配"),
+						prop("is_image", "integer", false, "为 1 时只返回 ImageView / ImageButton"),
+						prop("is_edittext", "integer", false, "为 1 时只返回 EditText"),
+						prop("is_listview", "integer", false, "为 1 时只返回 ListView / GridView / RecyclerView"),
+						prop("is_scrollview", "integer", false, "为 1 时只返回 ScrollView / HorizontalScrollView"))));
+		tools.add(tool("click_view", "按 hooker_id 或资源 id 点击控件。" + actionVerifyHint,
 				schema(prop("id", "string", true, "inspect 返回的 hooker_id 或 view id"))));
-		tools.add(tool("set_text", "给 TextView/EditText 设置文本。",
+		tools.add(tool("click_by_position", "按屏幕坐标点击控件。" + actionVerifyHint,
+				schema(prop("x", "integer", true, "屏幕 x 坐标"),
+						prop("y", "integer", true, "屏幕 y 坐标"))));
+		tools.add(tool("set_text", "给 TextView/EditText 设置文本。" + actionVerifyHint,
 				schema(prop("id", "string", true, "目标控件 id"), prop("text", "string", false, "要设置的文本"))));
-		tools.add(tool("send_search_action", "对 EditText 触发搜索事件。",
+		tools.add(tool("send_search_action", "对 EditText 触发搜索事件。" + actionVerifyHint,
 				schema(prop("id", "string", true, "目标 EditText id"))));
-		tools.add(tool("focus_view", "让控件获取焦点。",
+		tools.add(tool("focus_view", "让控件获取焦点。" + actionVerifyHint,
 				schema(prop("id", "string", true, "目标控件 id"))));
-		tools.add(tool("go_back", "执行系统返回。", schema()));
-		tools.add(tool("go_home", "回到系统桌面。", schema()));
-		tools.add(tool("try_to_dismiss_dialog", "尝试强制关闭当前界面上的阻断性弹窗，适合处理没有关闭按钮的升级弹窗或营销弹窗。", schema()));
-		tools.add(tool("swipe_view_pager", "控制 ViewPager/ViewPager2 向前或向后翻页。",
+		tools.add(tool("go_back", "执行系统返回。" + actionVerifyHint, schema()));
+		tools.add(tool("go_home", "回到系统桌面。" + actionVerifyHint, schema()));
+		tools.add(tool("try_to_dismiss_dialog", "尝试强制关闭当前界面上的阻断性弹窗，适合处理没有关闭按钮的升级弹窗或营销弹窗。" + actionVerifyHint, schema()));
+		tools.add(tool("swipe_view_pager", "控制 ViewPager/ViewPager2 向前或向后翻页。" + actionVerifyHint,
 				schema(prop("id", "string", true, "pager 控件 id"), prop("direction", "string", false, "next 或 prev"))));
-		tools.add(tool("scroll_recycler_by", "按偏移滚动 RecyclerView。",
+		tools.add(tool("scroll_recycler_by", "按偏移滚动 RecyclerView。" + actionVerifyHint,
 				schema(prop("id", "string", true, "RecyclerView id"), prop("x", "integer", false, "横向偏移"),
 						prop("y", "integer", false, "纵向偏移"))));
-		tools.add(tool("scroll_recycler_to_position", "滚动 RecyclerView 到指定 position。",
+		tools.add(tool("scroll_recycler_to_position", "滚动 RecyclerView 到指定 position。" + actionVerifyHint,
 				schema(prop("id", "string", true, "RecyclerView id"), prop("position", "integer", true, "目标位置"),
 						prop("smooth", "boolean", false, "是否平滑滚动"))));
 		tools.add(tool("get_app_info", "获取当前 App 的基础信息、组件、权限、签名和常见目录。", schema()));
+		tools.add(tool("get_screen_info", "获取当前屏幕和应用窗口的基础显示信息，包括像素尺寸、density、方向和旋转角度。", schema()));
 		tools.add(tool("request_media_projection_permission", "发起 MediaProjection 动态授权请求，设备上会弹系统确认框。", schema()));
 		tools.add(tool("get_media_projection_status", "查询 MediaProjection 当前授权状态。", schema()));
 		tools.add(tool("capture_media_projection_screenshot", "使用 MediaProjection 截取整屏 PNG；调用前需要先完成授权。", schema()));
