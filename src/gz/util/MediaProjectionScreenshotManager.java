@@ -106,6 +106,10 @@ public class MediaProjectionScreenshotManager {
 	}
 
 	public byte[] captureScreenshot() throws Exception {
+		return captureScreenshot("jpeg", 70);
+	}
+
+	public byte[] captureScreenshot(String format, int quality) throws Exception {
 		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
 			throw new IllegalStateException("MediaProjection requires Android 5.0+");
 		}
@@ -182,7 +186,7 @@ public class MediaProjectionScreenshotManager {
 				throw new IllegalStateException("empty screenshot image");
 			}
 			try {
-				return toPngBytes(image, width, height);
+				return toImageBytes(image, width, height, format, quality);
 			} finally {
 				image.close();
 			}
@@ -204,7 +208,7 @@ public class MediaProjectionScreenshotManager {
 		}
 	}
 
-	private byte[] toPngBytes(Image image, int width, int height) throws Exception {
+	private byte[] toImageBytes(Image image, int width, int height, String format, int quality) throws Exception {
 		Image.Plane[] planes = image.getPlanes();
 		if (planes == null || planes.length == 0) {
 			throw new IllegalStateException("image planes empty");
@@ -218,13 +222,39 @@ public class MediaProjectionScreenshotManager {
 		Bitmap croppedBitmap = Bitmap.createBitmap(bitmap, 0, 0, width, height);
 		ByteArrayOutputStream baos = new ByteArrayOutputStream();
 		try {
-			croppedBitmap.compress(Bitmap.CompressFormat.PNG, 100, baos);
+			Bitmap.CompressFormat compressFormat = resolveCompressFormat(format);
+			int resolvedQuality = normalizeQuality(quality);
+			croppedBitmap.compress(compressFormat, resolvedQuality, baos);
 			return baos.toByteArray();
 		} finally {
 			croppedBitmap.recycle();
 			bitmap.recycle();
 			baos.close();
 		}
+	}
+
+	private Bitmap.CompressFormat resolveCompressFormat(String format) {
+		if (format == null) {
+			return Bitmap.CompressFormat.JPEG;
+		}
+		String normalized = format.trim().toLowerCase();
+		if ("png".equals(normalized)) {
+			return Bitmap.CompressFormat.PNG;
+		}
+		if ("jpg".equals(normalized) || "jpeg".equals(normalized)) {
+			return Bitmap.CompressFormat.JPEG;
+		}
+		return Bitmap.CompressFormat.JPEG;
+	}
+
+	private int normalizeQuality(int quality) {
+		if (quality < 0) {
+			return 0;
+		}
+		if (quality > 100) {
+			return 100;
+		}
+		return quality;
 	}
 
 	private synchronized void onPermissionResult(int code, Intent data) {

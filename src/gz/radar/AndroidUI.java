@@ -173,6 +173,74 @@ public class AndroidUI {
 	            runnable.run();
 	        }
 	    }
+
+	    public static void swipe(final float startX, final float startY, final float endX, final float endY, final long durationMs) {
+	        Runnable runnable = new Runnable() {
+	            @Override
+	            public void run() {
+	                Instrumentation iso = new Instrumentation();
+	                long downTime = SystemClock.uptimeMillis();
+	                long duration = Math.max(50L, durationMs);
+	                int steps = 10;
+	                iso.sendPointerSync(MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, startX, startY, 0));
+	                for (int i = 1; i < steps; i++) {
+	                    float fraction = (float) i / (float) steps;
+	                    float x = startX + ((endX - startX) * fraction);
+	                    float y = startY + ((endY - startY) * fraction);
+	                    long eventTime = downTime + ((duration * i) / steps);
+	                    iso.sendPointerSync(MotionEvent.obtain(downTime, eventTime, MotionEvent.ACTION_MOVE, x, y, 0));
+	                }
+	                iso.sendPointerSync(MotionEvent.obtain(downTime, downTime + duration, MotionEvent.ACTION_UP, endX, endY, 0));
+	            }
+	        };
+	        if (Thread.currentThread().getId() <= 2) {
+	            new Thread(runnable).start();
+	        } else {
+	            runnable.run();
+	        }
+	    }
+
+	    public static void longTap(final float x, final float y, final long durationMs) {
+	        Runnable runnable = new Runnable() {
+	            @Override
+	            public void run() {
+	                Instrumentation iso = new Instrumentation();
+	                long downTime = SystemClock.uptimeMillis();
+	                long duration = Math.max(500L, durationMs);
+	                iso.sendPointerSync(MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, x, y, 0));
+	                iso.sendPointerSync(MotionEvent.obtain(downTime, downTime + duration, MotionEvent.ACTION_UP, x, y, 0));
+	            }
+	        };
+	        if (Thread.currentThread().getId() <= 2) {
+	            new Thread(runnable).start();
+	        } else {
+	            runnable.run();
+	        }
+	    }
+
+	    public static boolean performLongClick(View view) {
+	    	 if (view  != null) {
+	             while (true) {
+	                 if (view.isLongClickable()) {
+	                     final View longClickableView = view;
+	                     Runnable runnable = new Runnable() {
+	                         @Override
+	                         public void run() {
+	                             longClickableView.performLongClick();
+	                         }
+	                     };
+	                     longClickableView.post(runnable);
+	                     return true;
+	                 }
+	                 android.view.ViewParent parent = view.getParent();
+	                 if (!(parent instanceof View)) {
+	                     break;
+	                 }
+	                 view = (View) parent;
+	             }
+	         }
+	    	 return false;
+	    }
 	    
 	    public static void showToast(final String text) throws Exception {
 	    	Android.getTopActivity().runOnUiThread(new Runnable() {

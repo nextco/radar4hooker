@@ -17,7 +17,10 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
 import android.graphics.Point;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
@@ -37,6 +40,8 @@ import android.view.ViewParent;
 import android.view.ViewStub;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.AdapterView;
+import android.widget.AbsListView;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
@@ -77,6 +82,7 @@ import gz.radar.Android;
 import gz.radar.AndroidUI;
 import gz.radar.InspectUI;
 import gz.util.Logger;
+import gz.util.MediaProjectionScreenshotManager;
 import gz.util.XView;
 
 @HookerController("/hooker/ui/")
@@ -166,6 +172,87 @@ public class BuiltinUIServiceController {
 		});
 	}
 
+	@HookerRequestMapping(path = "activity_stack", produces = Produces.AUTO, method = Method.GET)
+	public Map<String, Object> activity_stack() throws Exception {
+		return runOnMainThread(new ValueCallable<Map<String, Object>>() {
+			@Override
+			public Map<String, Object> call() throws Exception {
+				Map<String, Object> result = new HashMap<String, Object>();
+				gz.radar.objects.ActivityInfo[] activityInfos = Android.getActivityInfos();
+				List<Map<String, Object>> activities = new ArrayList<Map<String, Object>>();
+				String topActivityName = null;
+				if (activityInfos != null) {
+					for (gz.radar.objects.ActivityInfo activityInfo : activityInfos) {
+						if (activityInfo == null) {
+							continue;
+						}
+						Map<String, Object> item = new HashMap<String, Object>();
+						item.put("name", activityInfo.getName());
+						item.put("title", activityInfo.getTitle());
+						item.put("on_top", Boolean.valueOf(activityInfo.isOnTop()));
+						item.put("paused", Boolean.valueOf(activityInfo.isPaused()));
+						item.put("stopped", Boolean.valueOf(activityInfo.isStopped()));
+						activities.add(item);
+						if (activityInfo.isOnTop() && topActivityName == null) {
+							topActivityName = activityInfo.getName();
+						}
+					}
+				}
+				result.put("ok", true);
+				result.put("count", Integer.valueOf(activities.size()));
+				result.put("top_activity", topActivityName);
+				result.put("activities", activities);
+				return result;
+			}
+		});
+	}
+
+	@HookerRequestMapping(path = "inspect_overlay", produces = Produces.AUTO, method = Method.GET)
+	public Map<String, Object> inspect_overlay(
+			@HookerRequestParam(name = "text_contains", defaultValue = "") String textContains,
+			@HookerRequestParam(name = "rect_limit", defaultValue = "0,0,0,0") String rectLimit,
+			@HookerRequestParam(name = "view_type", defaultValue = "") String viewType,
+			@HookerRequestParam(name = "class_name", defaultValue = "") String className,
+			@HookerRequestParam(name = "class_name_contains", defaultValue = "") String classNameContains,
+			@HookerRequestParam(name = "is_image", defaultValue = "0") int isImage,
+			@HookerRequestParam(name = "is_edittext", defaultValue = "0") int isEditText,
+			@HookerRequestParam(name = "is_listview", defaultValue = "0") int isListView,
+			@HookerRequestParam(name = "is_scrollview", defaultValue = "0") int isScrollView
+			) throws Exception {
+		Activity activity = Android.getTopActivity();
+		if (activity == null) {
+			return failResult("inspect_overlay", 404, "top activity is null");
+		}
+		List<View> views = InspectUI.collectImportantViews(activity, textContains, rectLimit, viewType,
+				className, classNameContains, isImage, isEditText, isListView, isScrollView);
+		Bitmap screenshot = captureOverlayBaseBitmap(activity);
+		if (screenshot == null) {
+			return failResult("inspect_overlay", 500, "failed to capture screenshot");
+		}
+		Bitmap overlayBitmap = screenshot.copy(Bitmap.Config.ARGB_8888, true);
+		if (overlayBitmap == null) {
+			screenshot.recycle();
+			return failResult("inspect_overlay", 500, "failed to create overlay bitmap");
+		}
+		screenshot.recycle();
+		drawInspectOverlay(overlayBitmap, views);
+		File overlayFile = new File(BuiltinFileServiceController.tempFileDir.getAbsolutePath() + "/" + UUID.randomUUID().toString() + "_overlay.jpg");
+		int overlayWidth = overlayBitmap.getWidth();
+		int overlayHeight = overlayBitmap.getHeight();
+		if (!saveBitmapToFile(overlayBitmap, overlayFile, 80)) {
+			overlayBitmap.recycle();
+			return failResult("inspect_overlay", 500, "failed to save overlay image");
+		}
+		overlayBitmap.recycle();
+		Map<String, Object> result = successResult("inspect_overlay");
+		result.put("top_activity", activity.getClass().getName());
+		result.put("view_count", Integer.valueOf(views.size()));
+		result.put("image_url", "/file?filename=" + overlayFile.getAbsolutePath());
+		result.put("image_width", Integer.valueOf(overlayWidth));
+		result.put("image_height", Integer.valueOf(overlayHeight));
+		return result;
+	}
+
 	@HookerRequestMapping(path = "click_by_text", produces = Produces.AUTO)
 	public Map<String, Object> click_by_text(@HookerRequestParam(name = "text") final String text,
 			@HookerRequestParam(name = "text_equeal", defaultValue = "false") boolean mustBeTextEqueal,
@@ -192,6 +279,24 @@ public class BuiltinUIServiceController {
 		return successResult("click_by_id", view, id);
 	}
 
+	@HookerRequestMapping(path = "long_click_view", produces = Produces.AUTO)
+	public Map<String, Object> long_click_view(@HookerRequestParam(name = "id") String id,
+			@HookerRequestParam(name = "duration_ms", defaultValue = "800") final long durationMs) throws Exception {
+		View view = requireView(id);
+		boolean handled = AndroidUI.performLongClick(view);
+		if (!handled) {
+			int[] location = new int[2];
+			view.getLocationOnScreen(location);
+			float centerX = location[0] + (view.getWidth() / 2f);
+			float centerY = location[1] + (view.getHeight() / 2f);
+			AndroidUI.longTap(centerX, centerY, durationMs);
+		}
+		Map<String, Object> result = successResult("long_click_view", view, id);
+		result.put("duration_ms", Long.valueOf(durationMs));
+		result.put("used_coordinate_fallback", Boolean.valueOf(!handled));
+		return result;
+	}
+
 	@HookerRequestMapping(path = "click_by_position", produces = Produces.AUTO, method = Method.GET)
 	public Map<String, Object> click_by_position(@HookerRequestParam(name = "x") final int x,
 			@HookerRequestParam(name = "y") final int y) throws Exception {
@@ -203,6 +308,42 @@ public class BuiltinUIServiceController {
 		});
 		result.put("x", Integer.valueOf(x));
 		result.put("y", Integer.valueOf(y));
+		return result;
+	}
+
+	@HookerRequestMapping(path = "swipe_on_screen", produces = Produces.AUTO, method = Method.GET)
+	public Map<String, Object> swipe_on_screen(@HookerRequestParam(name = "start_x") final int startX,
+			@HookerRequestParam(name = "start_y") final int startY,
+			@HookerRequestParam(name = "end_x") final int endX,
+			@HookerRequestParam(name = "end_y") final int endY,
+			@HookerRequestParam(name = "duration_ms", defaultValue = "300") final long durationMs) throws Exception {
+		Map<String, Object> result = runAction("swipe_on_screen", new UIAction() {
+			@Override
+			public void run() throws Exception {
+				AndroidUI.swipe(startX, startY, endX, endY, durationMs);
+			}
+		});
+		result.put("start_x", Integer.valueOf(startX));
+		result.put("start_y", Integer.valueOf(startY));
+		result.put("end_x", Integer.valueOf(endX));
+		result.put("end_y", Integer.valueOf(endY));
+		result.put("duration_ms", Long.valueOf(durationMs));
+		return result;
+	}
+
+	@HookerRequestMapping(path = "swipe_view", produces = Produces.AUTO, method = Method.GET)
+	public Map<String, Object> swipe_view(@HookerRequestParam(name = "id") String id,
+			@HookerRequestParam(name = "direction", defaultValue = "up") String direction,
+			@HookerRequestParam(name = "distance_ratio", defaultValue = "0.6") float distanceRatio,
+			@HookerRequestParam(name = "duration_ms", defaultValue = "300") long durationMs) throws Exception {
+		View view = requireView(id);
+		int[] points = buildSwipePoints(view, direction, distanceRatio);
+		Map<String, Object> result = swipe_on_screen(points[0], points[1], points[2], points[3], durationMs);
+		result.put("action", "swipe_view");
+		result.put("id", id);
+		result.put("view_class", view.getClass().getName());
+		result.put("direction", normalizeDirection(direction));
+		result.put("distance_ratio", Float.valueOf(normalizeDistanceRatio(distanceRatio)));
 		return result;
 	}
 
@@ -375,34 +516,295 @@ public class BuiltinUIServiceController {
 	}
 	
 	@HookerRequestMapping(path = "set_checked", produces = Produces.AUTO)
-	public Map<String, Object> set_checked(@HookerRequestParam(name = "id") String id)
+	public Map<String, Object> set_checked(@HookerRequestParam(name = "id") String id,
+			@HookerRequestParam(name = "checked", defaultValue = "-1") Integer checked)
 			throws Exception {
-		ToggleButton tb  = requireView(id, ToggleButton.class, "ToggleButton");
-		tb.post(new Runnable() {
+		CompoundButton compoundButton  = requireView(id, CompoundButton.class, "CompoundButton");
+		final boolean hasExplicitValue = checked != null && checked.intValue() != -1;
+		compoundButton.post(new Runnable() {
 			
 			@Override
 			public void run() {
-				boolean checked = tb.isChecked();
-				tb.setChecked(!checked);
+				boolean targetChecked = hasExplicitValue ? checked.intValue() != 0 : !compoundButton.isChecked();
+				compoundButton.setChecked(targetChecked);
 			}
 		});
-		return successResult("set_checked", tb, id);
+		Map<String, Object> result = successResult("set_checked", compoundButton, id);
+		result.put("checked", Boolean.valueOf(hasExplicitValue ? checked.intValue() != 0 : compoundButton.isChecked()));
+		return result;
 	}
 	
 	@HookerRequestMapping(path = "set_progress", produces = Produces.AUTO)
 	public Map<String, Object> set_progress(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "progress", defaultValue = "0") Integer progress)
 			throws Exception {
-		SeekBar seekbar  = requireView(id, SeekBar.class, "SeekBar");
-		seekbar.post(new Runnable() {
+		final ProgressBar progressBar = requireView(id, ProgressBar.class, "ProgressBar");
+		progressBar.post(new Runnable() {
 			
 			@Override
 			public void run() {
-				seekbar.setProgress(progress);
+				progressBar.setProgress(progress);
 			}
 		});
-		Map<String, Object> result = successResult("set_progress", seekbar, id);
+		Map<String, Object> result = successResult("set_progress", progressBar, id);
 		result.put("progress", progress);
 		return result;
+	}
+
+	@HookerRequestMapping(path = "set_rating", produces = Produces.AUTO)
+	public Map<String, Object> set_rating(@HookerRequestParam(name = "id") String id,
+			@HookerRequestParam(name = "rating", defaultValue = "0") final float rating) throws Exception {
+		final RatingBar ratingBar = requireView(id, RatingBar.class, "RatingBar");
+		ratingBar.post(new Runnable() {
+			@Override
+			public void run() {
+				ratingBar.setRating(rating);
+			}
+		});
+		Map<String, Object> result = successResult("set_rating", ratingBar, id);
+		result.put("rating", Float.valueOf(rating));
+		return result;
+	}
+
+	@HookerRequestMapping(path = "spinner_set_selection", produces = Produces.AUTO)
+	public Map<String, Object> spinner_set_selection(@HookerRequestParam(name = "id") String id,
+			@HookerRequestParam(name = "position", defaultValue = "0") final Integer position) throws Exception {
+		final Spinner spinner = requireView(id, Spinner.class, "Spinner");
+		spinner.post(new Runnable() {
+			@Override
+			public void run() {
+				spinner.setSelection(position.intValue());
+			}
+		});
+		Map<String, Object> result = successResult("spinner_set_selection", spinner, id);
+		result.put("position", position);
+		return result;
+	}
+
+	@HookerRequestMapping(path = "adapter_view_scroll_to_position", produces = Produces.AUTO)
+	public Map<String, Object> adapter_view_scroll_to_position(@HookerRequestParam(name = "id") String id,
+			@HookerRequestParam(name = "position", defaultValue = "0") final Integer position) throws Exception {
+		final AdapterView<?> adapterView = requireView(id, AdapterView.class, "AdapterView");
+		adapterView.post(new Runnable() {
+			@Override
+			public void run() {
+				if (adapterView instanceof AbsListView) {
+					((AbsListView) adapterView).smoothScrollToPosition(position.intValue());
+				} else {
+					adapterView.setSelection(position.intValue());
+				}
+			}
+		});
+		Map<String, Object> result = successResult("adapter_view_scroll_to_position", adapterView, id);
+		result.put("position", position);
+		return result;
+	}
+
+	@HookerRequestMapping(path = "adapter_view_click_position", produces = Produces.AUTO)
+	public Map<String, Object> adapter_view_click_position(@HookerRequestParam(name = "id") String id,
+			@HookerRequestParam(name = "position", defaultValue = "0") final Integer position) throws Exception {
+		final AdapterView<?> adapterView = requireView(id, AdapterView.class, "AdapterView");
+		adapterView.post(new Runnable() {
+			@Override
+			public void run() {
+				performAdapterViewItemClick(adapterView, position.intValue());
+			}
+		});
+		Map<String, Object> result = successResult("adapter_view_click_position", adapterView, id);
+		result.put("position", position);
+		return result;
+	}
+
+	@HookerRequestMapping(path = "scroll_view_scroll_to", produces = Produces.AUTO)
+	public Map<String, Object> scroll_view_scroll_to(@HookerRequestParam(name = "id") String id,
+			@HookerRequestParam(name = "x", defaultValue = "0") final Integer x,
+			@HookerRequestParam(name = "y", defaultValue = "0") final Integer y) throws Exception {
+		final View view = requireView(id);
+		if (!supportsScrollMethods(view)) {
+			return failResult("scroll_view_scroll_to", 400, "View does not support scrollTo", id, view);
+		}
+		view.post(new Runnable() {
+			@Override
+			public void run() {
+				invokeIntInt(view, "scrollTo", x.intValue(), y.intValue());
+			}
+		});
+		Map<String, Object> result = successResult("scroll_view_scroll_to", view, id);
+		result.put("x", x);
+		result.put("y", y);
+		return result;
+	}
+
+	@HookerRequestMapping(path = "scroll_view_scroll_by", produces = Produces.AUTO)
+	public Map<String, Object> scroll_view_scroll_by(@HookerRequestParam(name = "id") String id,
+			@HookerRequestParam(name = "x", defaultValue = "0") final Integer x,
+			@HookerRequestParam(name = "y", defaultValue = "0") final Integer y) throws Exception {
+		final View view = requireView(id);
+		if (!supportsScrollMethods(view)) {
+			return failResult("scroll_view_scroll_by", 400, "View does not support scrollBy", id, view);
+		}
+		view.post(new Runnable() {
+			@Override
+			public void run() {
+				invokeIntInt(view, "scrollBy", x.intValue(), y.intValue());
+			}
+		});
+		Map<String, Object> result = successResult("scroll_view_scroll_by", view, id);
+		result.put("x", x);
+		result.put("y", y);
+		return result;
+	}
+
+	@HookerRequestMapping(path = "web_view_load_url", produces = Produces.AUTO)
+	public Map<String, Object> web_view_load_url(@HookerRequestParam(name = "id") String id,
+			@HookerRequestParam(name = "url") final String url) throws Exception {
+		final WebView webView = requireView(id, WebView.class, "WebView");
+		webView.post(new Runnable() {
+			@Override
+			public void run() {
+				webView.loadUrl(url);
+			}
+		});
+		Map<String, Object> result = successResult("web_view_load_url", webView, id);
+		result.put("url", url);
+		return result;
+	}
+
+	@HookerRequestMapping(path = "web_view_go_back", produces = Produces.AUTO)
+	public Map<String, Object> web_view_go_back(@HookerRequestParam(name = "id") String id) throws Exception {
+		final WebView webView = requireView(id, WebView.class, "WebView");
+		webView.post(new Runnable() {
+			@Override
+			public void run() {
+				if (webView.canGoBack()) {
+					webView.goBack();
+				}
+			}
+		});
+		return successResult("web_view_go_back", webView, id);
+	}
+
+	@HookerRequestMapping(path = "web_view_go_forward", produces = Produces.AUTO)
+	public Map<String, Object> web_view_go_forward(@HookerRequestParam(name = "id") String id) throws Exception {
+		final WebView webView = requireView(id, WebView.class, "WebView");
+		webView.post(new Runnable() {
+			@Override
+			public void run() {
+				if (webView.canGoForward()) {
+					webView.goForward();
+				}
+			}
+		});
+		return successResult("web_view_go_forward", webView, id);
+	}
+
+	@HookerRequestMapping(path = "video_view_start", produces = Produces.AUTO)
+	public Map<String, Object> video_view_start(@HookerRequestParam(name = "id") String id) throws Exception {
+		final VideoView videoView = requireView(id, VideoView.class, "VideoView");
+		videoView.post(new Runnable() {
+			@Override
+			public void run() {
+				videoView.start();
+			}
+		});
+		return successResult("video_view_start", videoView, id);
+	}
+
+	@HookerRequestMapping(path = "video_view_pause", produces = Produces.AUTO)
+	public Map<String, Object> video_view_pause(@HookerRequestParam(name = "id") String id) throws Exception {
+		final VideoView videoView = requireView(id, VideoView.class, "VideoView");
+		videoView.post(new Runnable() {
+			@Override
+			public void run() {
+				videoView.pause();
+			}
+		});
+		return successResult("video_view_pause", videoView, id);
+	}
+
+	@HookerRequestMapping(path = "video_view_seek_to", produces = Produces.AUTO)
+	public Map<String, Object> video_view_seek_to(@HookerRequestParam(name = "id") String id,
+			@HookerRequestParam(name = "msec", defaultValue = "0") final Integer msec) throws Exception {
+		final VideoView videoView = requireView(id, VideoView.class, "VideoView");
+		videoView.post(new Runnable() {
+			@Override
+			public void run() {
+				videoView.seekTo(msec.intValue());
+			}
+		});
+		Map<String, Object> result = successResult("video_view_seek_to", videoView, id);
+		result.put("msec", msec);
+		return result;
+	}
+
+	@HookerRequestMapping(path = "drawer_open", produces = Produces.AUTO)
+	public Map<String, Object> drawer_open(@HookerRequestParam(name = "id") String id) throws Exception {
+		final View view = requireView(id);
+		if (!isInstanceOf(view, "androidx.drawerlayout.widget.DrawerLayout")) {
+			return failResult("drawer_open", 400, "View is not a DrawerLayout", id, view);
+		}
+		view.post(new Runnable() {
+			@Override
+			public void run() {
+				if (!invokeIntArgAsBoolean(view, "openDrawer", 8388611)) {
+					invokeIntArg(view, "openDrawer", 8388611);
+				}
+			}
+		});
+		return successResult("drawer_open", view, id);
+	}
+
+	@HookerRequestMapping(path = "drawer_close", produces = Produces.AUTO)
+	public Map<String, Object> drawer_close(@HookerRequestParam(name = "id") String id) throws Exception {
+		final View view = requireView(id);
+		if (!isInstanceOf(view, "androidx.drawerlayout.widget.DrawerLayout")) {
+			return failResult("drawer_close", 400, "View is not a DrawerLayout", id, view);
+		}
+		view.post(new Runnable() {
+			@Override
+			public void run() {
+				if (invokeNoArg(view, "closeDrawers") == null) {
+					invokeIntArg(view, "closeDrawer", 8388611);
+				}
+			}
+		});
+		return successResult("drawer_close", view, id);
+	}
+
+	@HookerRequestMapping(path = "tab_layout_select", produces = Produces.AUTO)
+	public Map<String, Object> tab_layout_select(@HookerRequestParam(name = "id") String id,
+			@HookerRequestParam(name = "position", defaultValue = "0") final Integer position) throws Exception {
+		final View view = requireView(id);
+		if (!isInstanceOf(view, "com.google.android.material.tabs.TabLayout")) {
+			return failResult("tab_layout_select", 400, "View is not a TabLayout", id, view);
+		}
+		view.post(new Runnable() {
+			@Override
+			public void run() {
+				Object tab = invokeIntArg(view, "getTabAt", position.intValue());
+				if (tab != null) {
+					invokeNoArg(tab, "select");
+				}
+			}
+		});
+		Map<String, Object> result = successResult("tab_layout_select", view, id);
+		result.put("position", position);
+		return result;
+	}
+
+	@HookerRequestMapping(path = "view_stub_inflate", produces = Produces.AUTO)
+	public Map<String, Object> view_stub_inflate(@HookerRequestParam(name = "id") String id) throws Exception {
+		final ViewStub viewStub = requireView(id, ViewStub.class, "ViewStub");
+		viewStub.post(new Runnable() {
+			@Override
+			public void run() {
+				try {
+					viewStub.inflate();
+				} catch (Exception e) {
+					logger.warn(e);
+				}
+			}
+		});
+		return successResult("view_stub_inflate", viewStub, id);
 	}
 
 	/**
@@ -455,6 +857,20 @@ public class BuiltinUIServiceController {
 			rectangle.put("x", view.getX());
 			rectangle.put("y", view.getY());
 			viewInfo.put("rectangle", rectangle);
+			int[] screenLocation = new int[2];
+			view.getLocationOnScreen(screenLocation);
+			Map<String, Object> screenRectangle = new HashMap<String, Object>();
+			screenRectangle.put("x", Integer.valueOf(screenLocation[0]));
+			screenRectangle.put("y", Integer.valueOf(screenLocation[1]));
+			screenRectangle.put("left", Integer.valueOf(screenLocation[0]));
+			screenRectangle.put("top", Integer.valueOf(screenLocation[1]));
+			screenRectangle.put("width", Integer.valueOf(view.getWidth()));
+			screenRectangle.put("height", Integer.valueOf(view.getHeight()));
+			screenRectangle.put("right", Integer.valueOf(screenLocation[0] + view.getWidth()));
+			screenRectangle.put("bottom", Integer.valueOf(screenLocation[1] + view.getHeight()));
+			screenRectangle.put("center_x", Float.valueOf(screenLocation[0] + (view.getWidth() / 2f)));
+			screenRectangle.put("center_y", Float.valueOf(screenLocation[1] + (view.getHeight() / 2f)));
+			viewInfo.put("screen_rectangle", screenRectangle);
 			viewInfo.put("content_description", safeToString(view.getContentDescription()));
 			viewInfo.put("parent_class", view.getParent() == null ? null : view.getParent().getClass().getName());
 			XView xView = new XView(view);
@@ -1401,6 +1817,96 @@ public class BuiltinUIServiceController {
 		}
 	}
 
+	private Object invokeIntInt(Object obj, String methodName, int arg1, int arg2) {
+		try {
+			return obj.getClass().getMethod(methodName, int.class, int.class).invoke(obj, Integer.valueOf(arg1), Integer.valueOf(arg2));
+		} catch (Exception e) {
+			return null;
+		}
+	}
+
+	private boolean invokeIntArgAsBoolean(Object obj, String methodName, int arg) {
+		Object result = invokeIntArg(obj, methodName, arg);
+		return result instanceof Boolean ? ((Boolean) result).booleanValue() : false;
+	}
+
+	private boolean supportsScrollMethods(View view) {
+		if (view == null) {
+			return false;
+		}
+		try {
+			view.getClass().getMethod("scrollTo", int.class, int.class);
+			view.getClass().getMethod("scrollBy", int.class, int.class);
+			return true;
+		} catch (Exception e) {
+			return false;
+		}
+	}
+
+	private void performAdapterViewItemClick(AdapterView<?> adapterView, int position) {
+		if (adapterView == null) {
+			return;
+		}
+		if (position < 0 || adapterView.getAdapter() == null || position >= adapterView.getAdapter().getCount()) {
+			return;
+		}
+		View child = adapterView.getChildAt(position - adapterView.getFirstVisiblePosition());
+		long itemId = adapterView.getAdapter().getItemId(position);
+		if (child != null) {
+			adapterView.performItemClick(child, position, itemId);
+			return;
+		}
+		adapterView.setSelection(position);
+	}
+
+	private int[] buildSwipePoints(View view, String direction, float distanceRatio) {
+		int[] location = new int[2];
+		view.getLocationOnScreen(location);
+		int left = location[0];
+		int top = location[1];
+		int width = Math.max(1, view.getWidth());
+		int height = Math.max(1, view.getHeight());
+		int marginX = Math.max(1, width / 10);
+		int marginY = Math.max(1, height / 10);
+		int centerX = left + (width / 2);
+		int centerY = top + (height / 2);
+		float ratio = normalizeDistanceRatio(distanceRatio);
+		int horizontalTravel = Math.max(1, Math.round((width - (marginX * 2)) * ratio));
+		int verticalTravel = Math.max(1, Math.round((height - (marginY * 2)) * ratio));
+		String normalizedDirection = normalizeDirection(direction);
+		if ("down".equals(normalizedDirection)) {
+			return new int[] { centerX, top + marginY, centerX, Math.min(top + height - marginY, top + marginY + verticalTravel) };
+		}
+		if ("left".equals(normalizedDirection)) {
+			return new int[] { left + width - marginX, centerY, Math.max(left + marginX, left + width - marginX - horizontalTravel), centerY };
+		}
+		if ("right".equals(normalizedDirection)) {
+			return new int[] { left + marginX, centerY, Math.min(left + width - marginX, left + marginX + horizontalTravel), centerY };
+		}
+		return new int[] { centerX, top + height - marginY, centerX, Math.max(top + marginY, top + height - marginY - verticalTravel) };
+	}
+
+	private String normalizeDirection(String direction) {
+		if (direction == null) {
+			return "up";
+		}
+		String normalized = direction.trim().toLowerCase();
+		if ("up".equals(normalized) || "down".equals(normalized) || "left".equals(normalized) || "right".equals(normalized)) {
+			return normalized;
+		}
+		return "up";
+	}
+
+	private float normalizeDistanceRatio(float distanceRatio) {
+		if (distanceRatio <= 0f) {
+			return 0.6f;
+		}
+		if (distanceRatio > 1f) {
+			return 1f;
+		}
+		return distanceRatio;
+	}
+
 	private String resolveViewIdName(Activity activity, int viewId) {
 		try {
 			return activity.getResources().getResourceEntryName(viewId);
@@ -1552,6 +2058,105 @@ public class BuiltinUIServiceController {
 	private interface UIAction {
 		void run() throws Exception;
 	}
+
+	private Bitmap captureOverlayBaseBitmap(Activity activity) throws Exception {
+		MediaProjectionScreenshotManager manager = MediaProjectionScreenshotManager.getInstance();
+		if (manager.hasPermission()) {
+			byte[] pngBytes = manager.captureScreenshot("png", 100);
+			if (pngBytes != null && pngBytes.length > 0) {
+				Bitmap bitmap = BitmapFactory.decodeByteArray(pngBytes, 0, pngBytes.length);
+				if (bitmap != null) {
+					return bitmap;
+				}
+			}
+		}
+		Bitmap bitmap = captureWindowByPixelCopy(activity);
+		if (bitmap != null) {
+			return bitmap;
+		}
+		byte[] pngBytes = captureByScreenCap();
+		if (pngBytes == null || pngBytes.length == 0) {
+			return null;
+		}
+		return BitmapFactory.decodeByteArray(pngBytes, 0, pngBytes.length);
+	}
+
+	private void drawInspectOverlay(Bitmap bitmap, List<View> views) {
+		if (bitmap == null || views == null) {
+			return;
+		}
+		Canvas canvas = new Canvas(bitmap);
+		Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+		strokePaint.setStyle(Paint.Style.STROKE);
+		strokePaint.setStrokeWidth(Math.max(2f, bitmap.getWidth() / 240f));
+		strokePaint.setColor(Color.RED);
+
+		Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+		fillPaint.setStyle(Paint.Style.FILL);
+		fillPaint.setColor(0x66000000);
+
+		Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+		textPaint.setStyle(Paint.Style.FILL);
+		textPaint.setColor(Color.WHITE);
+		textPaint.setTextSize(Math.max(18f, bitmap.getWidth() / 45f));
+
+		int index = 1;
+		for (View view : views) {
+			if (view == null || view.getWidth() <= 0 || view.getHeight() <= 0) {
+				continue;
+			}
+			int[] location = new int[2];
+			view.getLocationOnScreen(location);
+			float left = location[0];
+			float top = location[1];
+			float right = left + view.getWidth();
+			float bottom = top + view.getHeight();
+			canvas.drawRect(left, top, right, bottom, strokePaint);
+
+			String label = buildOverlayLabel(index, view);
+			float textWidth = textPaint.measureText(label);
+			float textHeight = textPaint.getTextSize();
+			float labelLeft = left;
+			float labelTop = Math.max(0f, top - textHeight - 12f);
+			float labelRight = Math.min(bitmap.getWidth(), labelLeft + textWidth + 16f);
+			float labelBottom = Math.min(bitmap.getHeight(), labelTop + textHeight + 12f);
+			canvas.drawRect(labelLeft, labelTop, labelRight, labelBottom, fillPaint);
+			canvas.drawText(label, labelLeft + 8f, labelBottom - 8f, textPaint);
+			index++;
+		}
+	}
+
+	private String buildOverlayLabel(int index, View view) {
+		StringBuilder sb = new StringBuilder();
+		sb.append(index).append(".");
+		if (view.getId() != View.NO_ID) {
+			try {
+				sb.append(resolveViewIdName(Android.getTopActivity(), view.getId()));
+				return sb.toString();
+			} catch (Exception e) {
+			}
+		}
+		if (view instanceof TextView) {
+			String text = ((TextView) view).getText().toString();
+			if (text != null && text.length() > 0) {
+				sb.append(limitString(text, 18));
+				return sb.toString();
+			}
+		}
+		sb.append(simpleClassName(view.getClass().getName()));
+		return sb.toString();
+	}
+
+	private String limitString(String value, int maxLength) {
+		if (value == null) {
+			return "";
+		}
+		String trimmed = value.replace('\n', ' ').trim();
+		if (trimmed.length() <= maxLength) {
+			return trimmed;
+		}
+		return trimmed.substring(0, maxLength) + "...";
+	}
 	
 	private static boolean saveImageButtonToFile(ImageView imageView, File outFile) throws Exception {
 	    Drawable drawable = imageView.getDrawable();
@@ -1571,12 +2176,16 @@ public class BuiltinUIServiceController {
 		}
 
 	private static boolean saveBitmapToFile(Bitmap bitmap, File outFile) throws Exception {
+		return saveBitmapToFile(bitmap, outFile, 70);
+	}
+
+	private static boolean saveBitmapToFile(Bitmap bitmap, File outFile, int quality) throws Exception {
 		if (bitmap == null || outFile == null) {
 			return false;
 		}
 		FileOutputStream fos = new FileOutputStream(outFile);
 		try {
-			boolean compressed = bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos);
+			boolean compressed = bitmap.compress(Bitmap.CompressFormat.JPEG, quality, fos);
 			fos.flush();
 			return compressed;
 		} finally {
