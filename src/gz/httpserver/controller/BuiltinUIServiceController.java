@@ -90,6 +90,9 @@ public class BuiltinUIServiceController {
 
 	private Logger logger = new Logger(BuiltinUIServiceController.class);
 	
+	/**
+	 * 结束当前栈顶 Activity。
+	 */
 	@HookerRequestMapping(path = "finish_current_activity", produces = Produces.AUTO)
 	public Map<String, Object> finish_current_activity() throws Exception {
 		return runAction("finish_current_activity", new UIAction() {
@@ -100,6 +103,9 @@ public class BuiltinUIServiceController {
 		});
 	}
 
+	/**
+	 * 触发系统返回键。
+	 */
 	@HookerRequestMapping(path = "back", produces = Produces.AUTO)
 	public Map<String, Object> back() throws Exception {
 		return runAction("back", new UIAction() {
@@ -110,6 +116,9 @@ public class BuiltinUIServiceController {
 		});
 	}
 
+	/**
+	 * 触发系统 Home 键。
+	 */
 	@HookerRequestMapping(path = "home", produces = Produces.AUTO)
 	public Map<String, Object> home() throws Exception {
 		return runAction("home", new UIAction() {
@@ -120,6 +129,9 @@ public class BuiltinUIServiceController {
 		});
 	}
 
+	/**
+	 * 获取当前顶部 Activity 的屏幕与窗口信息。
+	 */
 	@HookerRequestMapping(path = "screen_info", produces = Produces.AUTO, method = Method.GET)
 	public Map<String, Object> screen_info() throws Exception {
 		return runOnMainThread(new ValueCallable<Map<String, Object>>() {
@@ -172,6 +184,9 @@ public class BuiltinUIServiceController {
 		});
 	}
 
+	/**
+	 * 获取当前进程内 Activity 栈信息。
+	 */
 	@HookerRequestMapping(path = "activity_stack", produces = Produces.AUTO, method = Method.GET)
 	public Map<String, Object> activity_stack() throws Exception {
 		return runOnMainThread(new ValueCallable<Map<String, Object>>() {
@@ -207,6 +222,9 @@ public class BuiltinUIServiceController {
 		});
 	}
 
+	/**
+	 * 对当前界面执行筛选并生成带高亮框的截图。
+	 */
 	@HookerRequestMapping(path = "inspect_overlay", produces = Produces.AUTO, method = Method.GET)
 	public Map<String, Object> inspect_overlay(
 			@HookerRequestParam(name = "text_contains", defaultValue = "") String textContains,
@@ -253,6 +271,9 @@ public class BuiltinUIServiceController {
 		return result;
 	}
 
+	/**
+	 * 按文本查找并点击匹配 View。
+	 */
 	@HookerRequestMapping(path = "click_by_text", produces = Produces.AUTO)
 	public Map<String, Object> click_by_text(@HookerRequestParam(name = "text") final String text,
 			@HookerRequestParam(name = "text_equeal", defaultValue = "false") boolean mustBeTextEqueal,
@@ -271,6 +292,9 @@ public class BuiltinUIServiceController {
 		return result;
 	}
 
+	/**
+	 * 按控件 id 或 hooker_id 点击指定 View。
+	 */
 	@HookerRequestMapping(path = "click_by_id", produces = Produces.AUTO)
 	public Map<String, Object> click_by_id(@HookerRequestParam(name = "id") String id) throws Exception {
 		View view = requireView(id);
@@ -279,6 +303,9 @@ public class BuiltinUIServiceController {
 		return successResult("click_by_id", view, id);
 	}
 
+	/**
+	 * 对指定 View 执行长按，必要时回退为坐标长按。
+	 */
 	@HookerRequestMapping(path = "long_click_view", produces = Produces.AUTO)
 	public Map<String, Object> long_click_view(@HookerRequestParam(name = "id") String id,
 			@HookerRequestParam(name = "duration_ms", defaultValue = "800") final long durationMs) throws Exception {
@@ -297,6 +324,9 @@ public class BuiltinUIServiceController {
 		return result;
 	}
 
+	/**
+	 * 点击屏幕指定坐标。
+	 */
 	@HookerRequestMapping(path = "click_by_position", produces = Produces.AUTO, method = Method.GET)
 	public Map<String, Object> click_by_position(@HookerRequestParam(name = "x") final int x,
 			@HookerRequestParam(name = "y") final int y) throws Exception {
@@ -311,6 +341,9 @@ public class BuiltinUIServiceController {
 		return result;
 	}
 
+	/**
+	 * 在屏幕指定起止坐标之间执行滑动。
+	 */
 	@HookerRequestMapping(path = "swipe_on_screen", produces = Produces.AUTO, method = Method.GET)
 	public Map<String, Object> swipe_on_screen(@HookerRequestParam(name = "start_x") final int startX,
 			@HookerRequestParam(name = "start_y") final int startY,
@@ -331,6 +364,9 @@ public class BuiltinUIServiceController {
 		return result;
 	}
 
+	/**
+	 * 基于 View 的屏幕区域执行方向滑动。
+	 */
 	@HookerRequestMapping(path = "swipe_view", produces = Produces.AUTO, method = Method.GET)
 	public Map<String, Object> swipe_view(@HookerRequestParam(name = "id") String id,
 			@HookerRequestParam(name = "direction", defaultValue = "up") String direction,
@@ -347,6 +383,9 @@ public class BuiltinUIServiceController {
 		return result;
 	}
 
+	/**
+	 * 显示一条系统 Toast。
+	 */
 	@HookerRequestMapping(path = "show_toast", produces = Produces.AUTO)
 	public Map<String, Object> show_toast(@HookerRequestParam(name = "text", defaultValue = "牛逼不？") final String text) throws Exception {
 		Map<String, Object> result = runAction("show_toast", new UIAction() {
@@ -359,6 +398,9 @@ public class BuiltinUIServiceController {
 		return result;
 	}
 	
+	/**
+	 * 控制 ViewPager 或 ViewPager2 切换前后页。
+	 */
 	@HookerRequestMapping(path = "view_page_swipe", produces = Produces.AUTO)
 	public Map<String, Object> viewPageSwipe(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "direction", defaultValue = "next") final String direction) throws Exception {
 		View view = findViewById(id);
@@ -393,6 +435,9 @@ public class BuiltinUIServiceController {
 		return result;
 	}
 
+	/**
+	 * 根据请求体构造 Intent 并启动目标 Activity。
+	 */
 	@HookerRequestMapping(path = "start_activity", produces = Produces.AUTO, method = Method.POST)
 	public Map<String, Object> start_activity(@HookerRequestPostJson Map<String, Object> postJson) throws Exception {
 		String className = (String) postJson.get("class_name"); // 可选，显式启动
@@ -467,12 +512,18 @@ public class BuiltinUIServiceController {
 		return sb.toString();
 	}
 
+	/**
+	 * show_toast 的兼容入口，内部转调主实现。
+	 */
 	@HookerRequestMapping(path = "show_toast", produces = Produces.AUTO)
 	public Map<String, Object> show_toast_bak(@HookerRequestParam(name = "text", defaultValue = "牛逼不？") String text)
 			throws Exception {
 		return show_toast(text);
 	}
 
+	/**
+	 * 尝试通过 DialogFragment 关闭当前弹窗。
+	 */
 	@HookerRequestMapping(path = "try_to_dismiss_dialog", produces = Produces.AUTO)
 	public Map<String, Object> tryDismissByDialogFragment() throws Exception {
 		return runAction("try_to_dismiss_dialog", new UIAction() {
@@ -483,6 +534,9 @@ public class BuiltinUIServiceController {
 		});
 	}
 	
+	/**
+	 * 按偏移量滚动 RecyclerView。
+	 */
 	@HookerRequestMapping(path = "recycler_view_scroll_by", produces = Produces.AUTO)
 	public Map<String, Object> scrollRecyclerBy(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "x") Integer x, @HookerRequestParam(name = "y") Integer y)
 			throws Exception {
@@ -494,6 +548,9 @@ public class BuiltinUIServiceController {
 		return result;
 	}
 	
+	/**
+	 * 将 RecyclerView 跳转到指定位置。
+	 */
 	@HookerRequestMapping(path = "scroll_recycler_to_position", produces = Produces.AUTO)
 	public Map<String, Object> scrollRecyclerToPosition(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "position", defaultValue = "0") Integer position)
 			throws Exception {
@@ -505,6 +562,9 @@ public class BuiltinUIServiceController {
 	}
 	
 	
+	/**
+	 * 平滑滚动 RecyclerView 到指定位置。
+	 */
 	@HookerRequestMapping(path = "smooth_scroll_recycler_to_position", produces = Produces.AUTO)
 	public Map<String, Object> smoothScrollRecyclerToPosition(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "position", defaultValue = "0") Integer position)
 			throws Exception {
@@ -515,6 +575,9 @@ public class BuiltinUIServiceController {
 		return result;
 	}
 	
+	/**
+	 * 设置或切换 CompoundButton 的选中状态。
+	 */
 	@HookerRequestMapping(path = "set_checked", produces = Produces.AUTO)
 	public Map<String, Object> set_checked(@HookerRequestParam(name = "id") String id,
 			@HookerRequestParam(name = "checked", defaultValue = "-1") Integer checked)
@@ -534,6 +597,9 @@ public class BuiltinUIServiceController {
 		return result;
 	}
 	
+	/**
+	 * 设置 ProgressBar 当前进度。
+	 */
 	@HookerRequestMapping(path = "set_progress", produces = Produces.AUTO)
 	public Map<String, Object> set_progress(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "progress", defaultValue = "0") Integer progress)
 			throws Exception {
@@ -550,6 +616,9 @@ public class BuiltinUIServiceController {
 		return result;
 	}
 
+	/**
+	 * 设置 RatingBar 的评分值。
+	 */
 	@HookerRequestMapping(path = "set_rating", produces = Produces.AUTO)
 	public Map<String, Object> set_rating(@HookerRequestParam(name = "id") String id,
 			@HookerRequestParam(name = "rating", defaultValue = "0") final float rating) throws Exception {
@@ -565,6 +634,9 @@ public class BuiltinUIServiceController {
 		return result;
 	}
 
+	/**
+	 * 设置 Spinner 选中项。
+	 */
 	@HookerRequestMapping(path = "spinner_set_selection", produces = Produces.AUTO)
 	public Map<String, Object> spinner_set_selection(@HookerRequestParam(name = "id") String id,
 			@HookerRequestParam(name = "position", defaultValue = "0") final Integer position) throws Exception {
@@ -580,6 +652,9 @@ public class BuiltinUIServiceController {
 		return result;
 	}
 
+	/**
+	 * 将 AdapterView 滚动或定位到指定条目。
+	 */
 	@HookerRequestMapping(path = "adapter_view_scroll_to_position", produces = Produces.AUTO)
 	public Map<String, Object> adapter_view_scroll_to_position(@HookerRequestParam(name = "id") String id,
 			@HookerRequestParam(name = "position", defaultValue = "0") final Integer position) throws Exception {
@@ -599,6 +674,9 @@ public class BuiltinUIServiceController {
 		return result;
 	}
 
+	/**
+	 * 点击 AdapterView 中指定位置的条目。
+	 */
 	@HookerRequestMapping(path = "adapter_view_click_position", produces = Produces.AUTO)
 	public Map<String, Object> adapter_view_click_position(@HookerRequestParam(name = "id") String id,
 			@HookerRequestParam(name = "position", defaultValue = "0") final Integer position) throws Exception {
@@ -614,6 +692,9 @@ public class BuiltinUIServiceController {
 		return result;
 	}
 
+	/**
+	 * 调用目标 View 的 scrollTo(x, y)。
+	 */
 	@HookerRequestMapping(path = "scroll_view_scroll_to", produces = Produces.AUTO)
 	public Map<String, Object> scroll_view_scroll_to(@HookerRequestParam(name = "id") String id,
 			@HookerRequestParam(name = "x", defaultValue = "0") final Integer x,
@@ -634,6 +715,9 @@ public class BuiltinUIServiceController {
 		return result;
 	}
 
+	/**
+	 * 调用目标 View 的 scrollBy(x, y)。
+	 */
 	@HookerRequestMapping(path = "scroll_view_scroll_by", produces = Produces.AUTO)
 	public Map<String, Object> scroll_view_scroll_by(@HookerRequestParam(name = "id") String id,
 			@HookerRequestParam(name = "x", defaultValue = "0") final Integer x,
@@ -654,6 +738,9 @@ public class BuiltinUIServiceController {
 		return result;
 	}
 
+	/**
+	 * 让指定 WebView 加载 URL。
+	 */
 	@HookerRequestMapping(path = "web_view_load_url", produces = Produces.AUTO)
 	public Map<String, Object> web_view_load_url(@HookerRequestParam(name = "id") String id,
 			@HookerRequestParam(name = "url") final String url) throws Exception {
@@ -669,6 +756,9 @@ public class BuiltinUIServiceController {
 		return result;
 	}
 
+	/**
+	 * 让指定 WebView 执行后退。
+	 */
 	@HookerRequestMapping(path = "web_view_go_back", produces = Produces.AUTO)
 	public Map<String, Object> web_view_go_back(@HookerRequestParam(name = "id") String id) throws Exception {
 		final WebView webView = requireView(id, WebView.class, "WebView");
@@ -683,6 +773,9 @@ public class BuiltinUIServiceController {
 		return successResult("web_view_go_back", webView, id);
 	}
 
+	/**
+	 * 让指定 WebView 执行前进。
+	 */
 	@HookerRequestMapping(path = "web_view_go_forward", produces = Produces.AUTO)
 	public Map<String, Object> web_view_go_forward(@HookerRequestParam(name = "id") String id) throws Exception {
 		final WebView webView = requireView(id, WebView.class, "WebView");
@@ -697,6 +790,9 @@ public class BuiltinUIServiceController {
 		return successResult("web_view_go_forward", webView, id);
 	}
 
+	/**
+	 * 播放指定 VideoView。
+	 */
 	@HookerRequestMapping(path = "video_view_start", produces = Produces.AUTO)
 	public Map<String, Object> video_view_start(@HookerRequestParam(name = "id") String id) throws Exception {
 		final VideoView videoView = requireView(id, VideoView.class, "VideoView");
@@ -709,6 +805,9 @@ public class BuiltinUIServiceController {
 		return successResult("video_view_start", videoView, id);
 	}
 
+	/**
+	 * 暂停指定 VideoView。
+	 */
 	@HookerRequestMapping(path = "video_view_pause", produces = Produces.AUTO)
 	public Map<String, Object> video_view_pause(@HookerRequestParam(name = "id") String id) throws Exception {
 		final VideoView videoView = requireView(id, VideoView.class, "VideoView");
@@ -721,6 +820,9 @@ public class BuiltinUIServiceController {
 		return successResult("video_view_pause", videoView, id);
 	}
 
+	/**
+	 * 将指定 VideoView 跳转到目标播放位置。
+	 */
 	@HookerRequestMapping(path = "video_view_seek_to", produces = Produces.AUTO)
 	public Map<String, Object> video_view_seek_to(@HookerRequestParam(name = "id") String id,
 			@HookerRequestParam(name = "msec", defaultValue = "0") final Integer msec) throws Exception {
@@ -736,6 +838,9 @@ public class BuiltinUIServiceController {
 		return result;
 	}
 
+	/**
+	 * 打开 DrawerLayout 的抽屉。
+	 */
 	@HookerRequestMapping(path = "drawer_open", produces = Produces.AUTO)
 	public Map<String, Object> drawer_open(@HookerRequestParam(name = "id") String id) throws Exception {
 		final View view = requireView(id);
@@ -753,6 +858,9 @@ public class BuiltinUIServiceController {
 		return successResult("drawer_open", view, id);
 	}
 
+	/**
+	 * 关闭 DrawerLayout 的抽屉。
+	 */
 	@HookerRequestMapping(path = "drawer_close", produces = Produces.AUTO)
 	public Map<String, Object> drawer_close(@HookerRequestParam(name = "id") String id) throws Exception {
 		final View view = requireView(id);
@@ -770,6 +878,9 @@ public class BuiltinUIServiceController {
 		return successResult("drawer_close", view, id);
 	}
 
+	/**
+	 * 选择 TabLayout 的指定页签。
+	 */
 	@HookerRequestMapping(path = "tab_layout_select", produces = Produces.AUTO)
 	public Map<String, Object> tab_layout_select(@HookerRequestParam(name = "id") String id,
 			@HookerRequestParam(name = "position", defaultValue = "0") final Integer position) throws Exception {
@@ -791,6 +902,9 @@ public class BuiltinUIServiceController {
 		return result;
 	}
 
+	/**
+	 * 触发 ViewStub.inflate()。
+	 */
 	@HookerRequestMapping(path = "view_stub_inflate", produces = Produces.AUTO)
 	public Map<String, Object> view_stub_inflate(@HookerRequestParam(name = "id") String id) throws Exception {
 		final ViewStub viewStub = requireView(id, ViewStub.class, "ViewStub");
@@ -838,6 +952,12 @@ public class BuiltinUIServiceController {
 		Map<String, Object> result = new HashMap<String, Object>();
 		List<Map<String, Object>> views = new ArrayList<Map<String, Object>>();
 		Activity activity = Android.getTopActivity();
+		if (activity == null) {
+			Map<String, Object> fail = failResult("inspect", 404, "top activity is null");
+			fail.put("format", format);
+			fail.put("views", views);
+			return fail;
+		}
 		List<View> results = InspectUI.collectImportantViews(activity, textContains, rectLimit, viewType,
 				className, classNameContains, isImage, isEditText, isListView, isScrollView);
 		for (View view : results) {
@@ -1287,7 +1407,7 @@ public class BuiltinUIServiceController {
 	      .append("</style>")
 	      .append("<script>")
 	      .append("function clickView(id,btn){if(!id||!btn){return;}var card=btn.closest('.card');var result=card?card.querySelector('.action-result'):null;btn.disabled=true;if(result){result.textContent='clicking...';}fetch('/hooker/ui/click_by_id?id='+encodeURIComponent(id)).then(function(resp){return resp.text();}).then(function(text){if(result){result.textContent='click result: '+text;}}).catch(function(err){if(result){result.textContent='click failed: '+err;}}).finally(function(){btn.disabled=false;});}")
-	      .append("function setTextValue(id,btn){if(!id||!btn){return;}var card=btn.closest('.card');var result=card?card.querySelector('.action-result'):null;var input=card?card.querySelector('.text-input'):null;if(!input){return;}btn.disabled=true;if(result){result.textContent='setting text...';}fetch('/hooker/ui/set_text?id='+encodeURIComponent(id)+'&text='+encodeURIComponent(input.value||'')).then(function(resp){return resp.text();}).then(function(text){if(result){result.textContent='set text result: '+text;}}).catch(function(err){if(result){result.textContent='set text failed: '+err;}}).finally(function(){btn.disabled=false;});}")
+	      .append("function setTextValue(id,btn){if(!id||!btn){return;}var card=btn.closest('.card');var result=card?card.querySelector('.action-result'):null;var input=card?card.querySelector('.text-input'):null;if(!input){return;}btn.disabled=true;if(result){result.textContent='setting text...';}fetch('/hooker/ui/set_text_json',{method:'POST',headers:{'Content-Type':'application/json; charset=utf-8'},body:JSON.stringify({id:id,text:input.value||''})}).then(function(resp){return resp.text();}).then(function(text){if(result){result.textContent='set text result: '+text;}}).catch(function(err){if(result){result.textContent='set text failed: '+err;}}).finally(function(){btn.disabled=false;});}")
 	      .append("function sendSearchAction(id,btn){if(!id||!btn){return;}var card=btn.closest('.card');var result=card?card.querySelector('.action-result'):null;btn.disabled=true;if(result){result.textContent='sending search...';}fetch('/hooker/ui/send_search_action?id='+encodeURIComponent(id)).then(function(resp){return resp.text();}).then(function(text){if(result){result.textContent='search action result: '+text;}}).catch(function(err){if(result){result.textContent='search action failed: '+err;}}).finally(function(){btn.disabled=false;});}")
 	      .append("</script></head><body><div class='page'>");
 
@@ -1915,9 +2035,25 @@ public class BuiltinUIServiceController {
 		}
 	}
 
-	@HookerRequestMapping(path = "set_text", produces = Produces.AUTO, method = Method.GET)
-	public Map<String, Object> set_text(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "text") final String text)
+	private String stringValue(Object value, String defaultValue) {
+		if (value == null) {
+			return defaultValue;
+		}
+		String text = String.valueOf(value);
+		return text == null ? defaultValue : text;
+	}
+
+	/**
+	 * 设置 TextView 或 EditText 的文本内容。
+	 */
+	@HookerRequestMapping(path = "set_text_json", produces = Produces.AUTO, method = Method.POST)
+	public Map<String, Object> set_text_json(@HookerRequestPostJson Map<String, Object> postJson)
 			throws Exception {
+		String id = stringValue(postJson == null ? null : postJson.get("id"), null);
+		if (id == null || id.length() == 0) {
+			return failResult("set_text_json", 400, "missing id");
+		}
+		final String text = stringValue(postJson.get("text"), "");
 		final TextView textView = requireView(id, TextView.class, "TextView");
 		textView.post(new Runnable() {
 
@@ -1926,11 +2062,14 @@ public class BuiltinUIServiceController {
 				textView.setText(text);
 			}
 		});
-		Map<String, Object> result = successResult("set_text", textView, id);
+		Map<String, Object> result = successResult("set_text_json", textView, id);
 		result.put("text", text);
 		return result;
 	}
 
+	/**
+	 * 对指定 EditText 触发搜索动作。
+	 */
 	@HookerRequestMapping(path = "send_search_action", produces = Produces.AUTO, method = Method.GET)
 	public Map<String, Object> send_search_action(@HookerRequestParam(name = "id") String id) throws Exception {
 		final EditText editText = requireView(id, EditText.class, "EditText");
@@ -1952,6 +2091,9 @@ public class BuiltinUIServiceController {
 		return successResult("send_search_action", editText, id);
 	}
 
+	/**
+	 * 请求指定 View 获取焦点。
+	 */
 	@HookerRequestMapping(path = "focus_on", produces = Produces.AUTO, method = Method.GET)
 	public Map<String, Object> focus_on(@HookerRequestParam(name = "id") String id) throws Exception {
 		Map<String, Object> result = new HashMap<String, Object>();
