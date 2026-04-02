@@ -22,16 +22,28 @@ import gz.util.MediaProjectionScreenshotManager;
 @HookerController("/hooker/mediaprojection/")
 public class BuiltinMediaProjectionController {
 
+	/**
+	 * 发起 MediaProjection 动态授权请求。
+	 * 设备侧会弹出系统确认框；授权完成后即可调用 screenshot 获取整屏图像。
+	 */
 	@HookerRequestMapping(path = "request_permission", produces = Produces.AUTO, method = Method.GET)
 	public Map<String, Object> requestPermission() throws Exception {
 		return MediaProjectionScreenshotManager.getInstance().requestPermission();
 	}
 
+	/**
+	 * 查询 MediaProjection 当前授权状态。
+	 * 可用于判断是否已经拿到整屏截图能力，避免重复弹系统确认框。
+	 */
 	@HookerRequestMapping(path = "status", produces = Produces.AUTO, method = Method.GET)
 	public Map<String, Object> status() {
 		return MediaProjectionScreenshotManager.getInstance().getStatus();
 	}
 
+	/**
+	 * 使用 MediaProjection 截取整屏图片。
+	 * format 支持 jpeg 或 png，quality 取值 0-100；响应体直接返回图片字节，并附带屏幕元数据响应头。
+	 */
 	@HookerRequestMapping(path = "screenshot", produces = Produces.AUTO, method = Method.GET)
 	public Response screenshot(@HookerRequestParam(name = "format", defaultValue = "jpeg") String format,
 			@HookerRequestParam(name = "quality", defaultValue = "70") Integer quality,

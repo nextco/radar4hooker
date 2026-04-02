@@ -14,21 +14,19 @@ import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.Build;
-import android.support.v4.content.ContextCompat;
 import gz.httpserver.annotation.HookerController;
 import gz.httpserver.annotation.HookerWebServerConfiguration;
 import gz.httpserver.annotation.HookerRequestMapping;
 import gz.httpserver.controller.BuiltinAppInfoController;
 import gz.httpserver.controller.BuiltinServiceController;
 import gz.httpserver.controller.BuiltinUIServiceController;
-import gz.httpserver.controller.BuiltinUIMcpController;
 import gz.httpserver.controller.BuiltinClassHelperController;
 import gz.httpserver.controller.BuiltinFileServiceController;
 import gz.httpserver.controller.BuiltinMediaProjectionController;
-import gz.httpserver.controller.BuiltinScreenCapController;
 import gz.httpserver.controller.BuiltinUIAutomatorDumpController;
 import gz.httpserver.mustang.MustangAutoWireServlet;
 import gz.httpserver.mustang.MustangWebServer;
+import gz.ipc.HookerUiAutomationService;
 import gz.radar.Android;
 import gz.radar.AndroidUI;
 import gz.radar.objects.ObjectsStore;
@@ -134,9 +132,7 @@ public class HookerWebServerBoot {
 		controllerClzList.add(BuiltinServiceController.class);
 		controllerClzList.add(BuiltinUIServiceController.class);
 		controllerClzList.add(BuiltinMediaProjectionController.class);
-		controllerClzList.add(BuiltinScreenCapController.class);
 		controllerClzList.add(BuiltinUIAutomatorDumpController.class);
-		controllerClzList.add(BuiltinUIMcpController.class);
 		controllerClzList.add(BuiltinAppInfoController.class);
 		controllerClzList.add(BuiltinClassHelperController.class);
 		controllerClzList.add(BuiltinFileServiceController.class);
@@ -155,6 +151,7 @@ public class HookerWebServerBoot {
 			}
 		}
 		mustangHttpServer.start();
+		HookerUiAutomationService.ensureStarted();
 		logger.info("webserver start at " + port);
 		boolean hasPermission;
 		Context ctx = Android.getApplication();
