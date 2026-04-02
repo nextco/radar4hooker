@@ -4,7 +4,7 @@ import android.os.IBinder;
 
 public final class HookerUiAutomationContract {
 
-	public static final String SERVICE_NAME = "hooker_ui_automation";
+	public static final String SERVICE_NAME_PREFIX = "hooker_ui_automation:";
 	public static final String DESCRIPTOR = "gz.ipc.HookerUiAutomation";
 	public static final int TRANSACTION_CALL = IBinder.FIRST_CALL_TRANSACTION;
 
@@ -68,6 +68,13 @@ public final class HookerUiAutomationContract {
 	public static final String ACTION_MEDIA_PROJECTION_STATUS = "media_projection_status";
 	public static final String ACTION_MEDIA_PROJECTION_REQUEST_PERMISSION = "media_projection_request_permission";
 	public static final String ACTION_MEDIA_PROJECTION_CAPTURE_SCREENSHOT = "media_projection_capture_screenshot";
+
+	public static String buildServiceName(String hostPackageName) {
+		if (hostPackageName == null || hostPackageName.trim().length() == 0) {
+			throw new IllegalArgumentException("hostPackageName is empty");
+		}
+		return SERVICE_NAME_PREFIX + hostPackageName.trim();
+	}
 
 	private HookerUiAutomationContract() {
 	}

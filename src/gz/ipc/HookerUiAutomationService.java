@@ -6,6 +6,7 @@ import android.os.Binder;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.Parcel;
+import gz.radar.Android;
 import gz.util.Logger;
 
 public final class HookerUiAutomationService extends Binder {
@@ -21,14 +22,15 @@ public final class HookerUiAutomationService extends Binder {
 
 	public static synchronized void ensureStarted() {
 		try {
-			if (findRegisteredService() != null) {
+			String serviceName = currentServiceName();
+			if (findRegisteredService(serviceName) != null) {
 				return;
 			}
 			if (instance == null) {
 				instance = new HookerUiAutomationService();
 			}
-			registerService(instance);
-			logger.info("binder service registered: " + HookerUiAutomationContract.SERVICE_NAME);
+			registerService(serviceName, instance);
+			logger.info("binder service registered: " + serviceName);
 		} catch (Throwable throwable) {
 			logger.warn(throwable);
 		}
@@ -78,16 +80,24 @@ public final class HookerUiAutomationService extends Binder {
 		bundle.writeToParcel(parcel, 0);
 	}
 
-	private static IBinder findRegisteredService() throws Exception {
+	private static IBinder findRegisteredService(String serviceName) throws Exception {
 		Class<?> serviceManagerClass = Class.forName("android.os.ServiceManager");
 		Method getService = serviceManagerClass.getDeclaredMethod("getService", String.class);
-		return (IBinder) getService.invoke(null, HookerUiAutomationContract.SERVICE_NAME);
+		return (IBinder) getService.invoke(null, serviceName);
 	}
 
-	private static void registerService(IBinder binder) throws Exception {
+	private static void registerService(String serviceName, IBinder binder) throws Exception {
 		Class<?> serviceManagerClass = Class.forName("android.os.ServiceManager");
 		Method addService = serviceManagerClass.getDeclaredMethod("addService", String.class, IBinder.class);
 		addService.setAccessible(true);
-		addService.invoke(null, HookerUiAutomationContract.SERVICE_NAME, binder);
+		addService.invoke(null, serviceName, binder);
+	}
+
+	private static String currentServiceName() {
+		try {
+			return HookerUiAutomationContract.buildServiceName(Android.getApplication().getPackageName());
+		} catch (Exception exception) {
+			throw new IllegalStateException("Unable to resolve host package name", exception);
+		}
 	}
 }

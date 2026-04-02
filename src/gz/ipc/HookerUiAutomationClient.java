@@ -12,9 +12,13 @@ public final class HookerUiAutomationClient {
 	}
 
 	public static Bundle call(String action, Bundle args) throws Exception {
-		IBinder binder = findService();
+		throw new IllegalStateException("Use call(hostPackageName, action, args) to specify the host app package");
+	}
+
+	public static Bundle call(String hostPackageName, String action, Bundle args) throws Exception {
+		IBinder binder = findService(hostPackageName);
 		if (binder == null) {
-			throw new IllegalStateException("Service not found: " + HookerUiAutomationContract.SERVICE_NAME);
+			throw new IllegalStateException("Service not found: " + HookerUiAutomationContract.buildServiceName(hostPackageName));
 		}
 		Parcel data = Parcel.obtain();
 		Parcel reply = Parcel.obtain();
@@ -36,10 +40,10 @@ public final class HookerUiAutomationClient {
 		}
 	}
 
-	private static IBinder findService() throws Exception {
+	private static IBinder findService(String hostPackageName) throws Exception {
 		Class<?> serviceManagerClass = Class.forName("android.os.ServiceManager");
 		Method getService = serviceManagerClass.getDeclaredMethod("getService", String.class);
-		return (IBinder) getService.invoke(null, HookerUiAutomationContract.SERVICE_NAME);
+		return (IBinder) getService.invoke(null, HookerUiAutomationContract.buildServiceName(hostPackageName));
 	}
 
 	private static Bundle readBundle(Parcel parcel) {
