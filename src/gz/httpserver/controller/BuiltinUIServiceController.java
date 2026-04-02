@@ -92,6 +92,7 @@ public class BuiltinUIServiceController {
 	
 	/**
 	 * 结束当前栈顶 Activity。
+	 * 执行后界面通常会回退到上一个页面，建议立即配合截图接口确认页面是否已切换。
 	 */
 	@HookerRequestMapping(path = "finish_current_activity", produces = Produces.AUTO)
 	public Map<String, Object> finish_current_activity() throws Exception {
@@ -105,6 +106,7 @@ public class BuiltinUIServiceController {
 
 	/**
 	 * 触发系统返回键。
+	 * 适合退出当前页面、关闭键盘或返回上一级界面，执行后建议立即确认界面变化。
 	 */
 	@HookerRequestMapping(path = "back", produces = Produces.AUTO)
 	public Map<String, Object> back() throws Exception {
@@ -118,6 +120,7 @@ public class BuiltinUIServiceController {
 
 	/**
 	 * 触发系统 Home 键。
+	 * 调用后会回到系统桌面，通常用于中断当前 App 的前台界面。
 	 */
 	@HookerRequestMapping(path = "home", produces = Produces.AUTO)
 	public Map<String, Object> home() throws Exception {
@@ -131,6 +134,7 @@ public class BuiltinUIServiceController {
 
 	/**
 	 * 获取当前顶部 Activity 的屏幕与窗口信息。
+	 * 返回像素尺寸、density、方向、旋转角度以及应用窗口大小，适合为坐标点击和截图分析提供基准。
 	 */
 	@HookerRequestMapping(path = "screen_info", produces = Produces.AUTO, method = Method.GET)
 	public Map<String, Object> screen_info() throws Exception {
@@ -186,6 +190,7 @@ public class BuiltinUIServiceController {
 
 	/**
 	 * 获取当前进程内 Activity 栈信息。
+	 * 返回顶部 Activity、title 以及 paused/stopped 等状态，便于判断页面切换是否符合预期。
 	 */
 	@HookerRequestMapping(path = "activity_stack", produces = Produces.AUTO, method = Method.GET)
 	public Map<String, Object> activity_stack() throws Exception {
@@ -224,6 +229,17 @@ public class BuiltinUIServiceController {
 
 	/**
 	 * 对当前界面执行筛选并生成带高亮框的截图。
+	 * 会把 inspect 命中的控件按 screen_rectangle 直接画框到截图上，便于按图理解当前布局。
+	 *
+	 * @param textContains 按 text/hint/contentDescription 做包含匹配，大小写不敏感
+	 * @param rectLimit 屏幕区域过滤，格式为 left,top,right,bottom
+	 * @param viewType 按视图类型精确匹配，例如 TextView、EditText、RecyclerView
+	 * @param className 按完整类名精确匹配，例如 android.widget.TextView
+	 * @param classNameContains 按完整类名包含匹配
+	 * @param isImage 为 1 时只返回 ImageView / ImageButton
+	 * @param isEditText 为 1 时只返回 EditText
+	 * @param isListView 为 1 时只返回 ListView / GridView / RecyclerView
+	 * @param isScrollView 为 1 时只返回 ScrollView / HorizontalScrollView
 	 */
 	@HookerRequestMapping(path = "inspect_overlay", produces = Produces.AUTO, method = Method.GET)
 	public Map<String, Object> inspect_overlay(
@@ -294,6 +310,7 @@ public class BuiltinUIServiceController {
 
 	/**
 	 * 按控件 id 或 hooker_id 点击指定 View。
+	 * 目标 id 一般来自 inspect 返回的 hooker_id 或资源 id；执行后建议立即确认界面变化。
 	 */
 	@HookerRequestMapping(path = "click_by_id", produces = Produces.AUTO)
 	public Map<String, Object> click_by_id(@HookerRequestParam(name = "id") String id) throws Exception {
@@ -305,6 +322,7 @@ public class BuiltinUIServiceController {
 
 	/**
 	 * 对指定 View 执行长按，必要时回退为坐标长按。
+	 * 默认长按 800ms；当 View 自身不消费长按时，会退化为中心点坐标长按。
 	 */
 	@HookerRequestMapping(path = "long_click_view", produces = Produces.AUTO)
 	public Map<String, Object> long_click_view(@HookerRequestParam(name = "id") String id,
@@ -326,6 +344,7 @@ public class BuiltinUIServiceController {
 
 	/**
 	 * 点击屏幕指定坐标。
+	 * 适合 inspect_overlay 或截图已经定位到目标位置，但拿不到稳定 hooker_id 的场景。
 	 */
 	@HookerRequestMapping(path = "click_by_position", produces = Produces.AUTO, method = Method.GET)
 	public Map<String, Object> click_by_position(@HookerRequestParam(name = "x") final int x,
@@ -343,6 +362,7 @@ public class BuiltinUIServiceController {
 
 	/**
 	 * 在屏幕指定起止坐标之间执行滑动。
+	 * 可直接控制整屏滚动、拖拽或手势翻页，默认时长 300ms。
 	 */
 	@HookerRequestMapping(path = "swipe_on_screen", produces = Produces.AUTO, method = Method.GET)
 	public Map<String, Object> swipe_on_screen(@HookerRequestParam(name = "start_x") final int startX,
@@ -366,6 +386,7 @@ public class BuiltinUIServiceController {
 
 	/**
 	 * 基于 View 的屏幕区域执行方向滑动。
+	 * 在目标控件内部按方向滑动，direction 支持 up/down/left/right，distance_ratio 表示滑动距离占可用区域的比例。
 	 */
 	@HookerRequestMapping(path = "swipe_view", produces = Produces.AUTO, method = Method.GET)
 	public Map<String, Object> swipe_view(@HookerRequestParam(name = "id") String id,
@@ -400,6 +421,7 @@ public class BuiltinUIServiceController {
 	
 	/**
 	 * 控制 ViewPager 或 ViewPager2 切换前后页。
+	 * direction 支持 next 或 prev，适合轮播页、引导页和分页容器。
 	 */
 	@HookerRequestMapping(path = "view_page_swipe", produces = Produces.AUTO)
 	public Map<String, Object> viewPageSwipe(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "direction", defaultValue = "next") final String direction) throws Exception {
@@ -523,6 +545,7 @@ public class BuiltinUIServiceController {
 
 	/**
 	 * 尝试通过 DialogFragment 关闭当前弹窗。
+	 * 适合处理没有明确关闭按钮的升级弹窗或营销弹窗；是否成功应结合后续截图确认。
 	 */
 	@HookerRequestMapping(path = "try_to_dismiss_dialog", produces = Produces.AUTO)
 	public Map<String, Object> tryDismissByDialogFragment() throws Exception {
@@ -536,6 +559,7 @@ public class BuiltinUIServiceController {
 	
 	/**
 	 * 按偏移量滚动 RecyclerView。
+	 * x/y 分别表示横向和纵向偏移量，适合做小步滚动或对齐列表内容。
 	 */
 	@HookerRequestMapping(path = "recycler_view_scroll_by", produces = Produces.AUTO)
 	public Map<String, Object> scrollRecyclerBy(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "x") Integer x, @HookerRequestParam(name = "y") Integer y)
@@ -550,6 +574,7 @@ public class BuiltinUIServiceController {
 	
 	/**
 	 * 将 RecyclerView 跳转到指定位置。
+	 * 直接跳转到目标 position；如果需要平滑滚动，请使用 smooth_scroll_recycler_to_position。
 	 */
 	@HookerRequestMapping(path = "scroll_recycler_to_position", produces = Produces.AUTO)
 	public Map<String, Object> scrollRecyclerToPosition(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "position", defaultValue = "0") Integer position)
@@ -564,6 +589,7 @@ public class BuiltinUIServiceController {
 	
 	/**
 	 * 平滑滚动 RecyclerView 到指定位置。
+	 * 相比直接跳转更接近真实用户操作，适合依赖滚动过程触发懒加载的页面。
 	 */
 	@HookerRequestMapping(path = "smooth_scroll_recycler_to_position", produces = Produces.AUTO)
 	public Map<String, Object> smoothScrollRecyclerToPosition(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "position", defaultValue = "0") Integer position)
@@ -577,6 +603,7 @@ public class BuiltinUIServiceController {
 	
 	/**
 	 * 设置或切换 CompoundButton 的选中状态。
+	 * 适用于 CheckBox、RadioButton、ToggleButton、Switch 等；checked=0/1 表示显式设置，不传或传 -1 表示切换当前状态。
 	 */
 	@HookerRequestMapping(path = "set_checked", produces = Produces.AUTO)
 	public Map<String, Object> set_checked(@HookerRequestParam(name = "id") String id,
@@ -599,6 +626,7 @@ public class BuiltinUIServiceController {
 	
 	/**
 	 * 设置 ProgressBar 当前进度。
+	 * 同时适用于 SeekBar，调用方需要自行保证 progress 在控件允许范围内。
 	 */
 	@HookerRequestMapping(path = "set_progress", produces = Produces.AUTO)
 	public Map<String, Object> set_progress(@HookerRequestParam(name = "id") String id, @HookerRequestParam(name = "progress", defaultValue = "0") Integer progress)
@@ -618,6 +646,7 @@ public class BuiltinUIServiceController {
 
 	/**
 	 * 设置 RatingBar 的评分值。
+	 * rating 为目标评分值，是否会被四舍五入取决于控件 stepSize 配置。
 	 */
 	@HookerRequestMapping(path = "set_rating", produces = Produces.AUTO)
 	public Map<String, Object> set_rating(@HookerRequestParam(name = "id") String id,
@@ -636,6 +665,7 @@ public class BuiltinUIServiceController {
 
 	/**
 	 * 设置 Spinner 选中项。
+	 * position 为目标下标，适合切换下拉选择框当前值。
 	 */
 	@HookerRequestMapping(path = "spinner_set_selection", produces = Produces.AUTO)
 	public Map<String, Object> spinner_set_selection(@HookerRequestParam(name = "id") String id,
@@ -654,6 +684,7 @@ public class BuiltinUIServiceController {
 
 	/**
 	 * 将 AdapterView 滚动或定位到指定条目。
+	 * 适用于 ListView、GridView 等；AbsListView 会走 smoothScrollToPosition，其他 AdapterView 会直接 setSelection。
 	 */
 	@HookerRequestMapping(path = "adapter_view_scroll_to_position", produces = Produces.AUTO)
 	public Map<String, Object> adapter_view_scroll_to_position(@HookerRequestParam(name = "id") String id,
@@ -676,6 +707,7 @@ public class BuiltinUIServiceController {
 
 	/**
 	 * 点击 AdapterView 中指定位置的条目。
+	 * 适用于 ListView、GridView 等列表容器，position 为目标条目下标。
 	 */
 	@HookerRequestMapping(path = "adapter_view_click_position", produces = Produces.AUTO)
 	public Map<String, Object> adapter_view_click_position(@HookerRequestParam(name = "id") String id,
@@ -694,6 +726,7 @@ public class BuiltinUIServiceController {
 
 	/**
 	 * 调用目标 View 的 scrollTo(x, y)。
+	 * 适用于 ScrollView、HorizontalScrollView、NestedScrollView 等支持滚动坐标定位的容器。
 	 */
 	@HookerRequestMapping(path = "scroll_view_scroll_to", produces = Produces.AUTO)
 	public Map<String, Object> scroll_view_scroll_to(@HookerRequestParam(name = "id") String id,
@@ -717,6 +750,7 @@ public class BuiltinUIServiceController {
 
 	/**
 	 * 调用目标 View 的 scrollBy(x, y)。
+	 * 适用于 ScrollView、HorizontalScrollView、NestedScrollView 等支持偏移滚动的容器。
 	 */
 	@HookerRequestMapping(path = "scroll_view_scroll_by", produces = Produces.AUTO)
 	public Map<String, Object> scroll_view_scroll_by(@HookerRequestParam(name = "id") String id,
@@ -740,6 +774,7 @@ public class BuiltinUIServiceController {
 
 	/**
 	 * 让指定 WebView 加载 URL。
+	 * url 为要加载的完整地址；执行后建议通过截图确认页面是否已经跳转。
 	 */
 	@HookerRequestMapping(path = "web_view_load_url", produces = Produces.AUTO)
 	public Map<String, Object> web_view_load_url(@HookerRequestParam(name = "id") String id,
@@ -758,6 +793,7 @@ public class BuiltinUIServiceController {
 
 	/**
 	 * 让指定 WebView 执行后退。
+	 * 只有在 canGoBack 为 true 时才会真正后退。
 	 */
 	@HookerRequestMapping(path = "web_view_go_back", produces = Produces.AUTO)
 	public Map<String, Object> web_view_go_back(@HookerRequestParam(name = "id") String id) throws Exception {
@@ -775,6 +811,7 @@ public class BuiltinUIServiceController {
 
 	/**
 	 * 让指定 WebView 执行前进。
+	 * 只有在 canGoForward 为 true 时才会真正前进。
 	 */
 	@HookerRequestMapping(path = "web_view_go_forward", produces = Produces.AUTO)
 	public Map<String, Object> web_view_go_forward(@HookerRequestParam(name = "id") String id) throws Exception {
@@ -792,6 +829,7 @@ public class BuiltinUIServiceController {
 
 	/**
 	 * 播放指定 VideoView。
+	 * 适合恢复或启动原生 VideoView 播放状态。
 	 */
 	@HookerRequestMapping(path = "video_view_start", produces = Produces.AUTO)
 	public Map<String, Object> video_view_start(@HookerRequestParam(name = "id") String id) throws Exception {
@@ -807,6 +845,7 @@ public class BuiltinUIServiceController {
 
 	/**
 	 * 暂停指定 VideoView。
+	 * 只作用于原生 VideoView，不覆盖 ExoPlayer 等自定义播放器。
 	 */
 	@HookerRequestMapping(path = "video_view_pause", produces = Produces.AUTO)
 	public Map<String, Object> video_view_pause(@HookerRequestParam(name = "id") String id) throws Exception {
@@ -822,6 +861,7 @@ public class BuiltinUIServiceController {
 
 	/**
 	 * 将指定 VideoView 跳转到目标播放位置。
+	 * msec 为目标毫秒位置，适合回放定位和状态恢复。
 	 */
 	@HookerRequestMapping(path = "video_view_seek_to", produces = Produces.AUTO)
 	public Map<String, Object> video_view_seek_to(@HookerRequestParam(name = "id") String id,
@@ -840,6 +880,7 @@ public class BuiltinUIServiceController {
 
 	/**
 	 * 打开 DrawerLayout 的抽屉。
+	 * 当前实现默认按 start 方向抽屉处理，适用于常见左侧导航抽屉。
 	 */
 	@HookerRequestMapping(path = "drawer_open", produces = Produces.AUTO)
 	public Map<String, Object> drawer_open(@HookerRequestParam(name = "id") String id) throws Exception {
@@ -860,6 +901,7 @@ public class BuiltinUIServiceController {
 
 	/**
 	 * 关闭 DrawerLayout 的抽屉。
+	 * 优先调用 closeDrawers，不可用时退化为关闭 start 方向抽屉。
 	 */
 	@HookerRequestMapping(path = "drawer_close", produces = Produces.AUTO)
 	public Map<String, Object> drawer_close(@HookerRequestParam(name = "id") String id) throws Exception {
@@ -880,6 +922,7 @@ public class BuiltinUIServiceController {
 
 	/**
 	 * 选择 TabLayout 的指定页签。
+	 * position 为目标 tab 下标，适合切换顶部频道或分页导航。
 	 */
 	@HookerRequestMapping(path = "tab_layout_select", produces = Produces.AUTO)
 	public Map<String, Object> tab_layout_select(@HookerRequestParam(name = "id") String id,
@@ -904,6 +947,7 @@ public class BuiltinUIServiceController {
 
 	/**
 	 * 触发 ViewStub.inflate()。
+	 * 适合主动展开延迟加载布局；重复调用可能因控件已 inflate 而无效果。
 	 */
 	@HookerRequestMapping(path = "view_stub_inflate", produces = Produces.AUTO)
 	public Map<String, Object> view_stub_inflate(@HookerRequestParam(name = "id") String id) throws Exception {
@@ -923,6 +967,7 @@ public class BuiltinUIServiceController {
 
 	/**
 	 * 检查当前界面的重要 View，并返回可用于后续操作的 hooker_id。
+	 * 支持按文本、矩形区域、视图类型、类名和常见控件类别过滤；自动化场景建议使用 format=json。
 	 *
 	 * @param format 返回格式，支持 html 和 json；MCP 场景建议使用 json
 	 * @param textContains 按文本包含匹配，匹配 TextView 的 text/hint 以及 View 的 contentDescription，大小写不敏感
@@ -2045,6 +2090,7 @@ public class BuiltinUIServiceController {
 
 	/**
 	 * 设置 TextView 或 EditText 的文本内容。
+	 * 该接口使用 JSON POST，避免 GET 参数中的中文或特殊字符乱码；请求体需要包含 id，可选 text。
 	 */
 	@HookerRequestMapping(path = "set_text_json", produces = Produces.AUTO, method = Method.POST)
 	public Map<String, Object> set_text_json(@HookerRequestPostJson Map<String, Object> postJson)
@@ -2069,6 +2115,7 @@ public class BuiltinUIServiceController {
 
 	/**
 	 * 对指定 EditText 触发搜索动作。
+	 * 会先请求焦点并尝试拉起输入法，然后触发 IME_ACTION_SEARCH。
 	 */
 	@HookerRequestMapping(path = "send_search_action", produces = Produces.AUTO, method = Method.GET)
 	public Map<String, Object> send_search_action(@HookerRequestParam(name = "id") String id) throws Exception {
@@ -2093,6 +2140,7 @@ public class BuiltinUIServiceController {
 
 	/**
 	 * 请求指定 View 获取焦点。
+	 * 适合为输入、键盘弹起或后续 editor action 做前置准备。
 	 */
 	@HookerRequestMapping(path = "focus_on", produces = Produces.AUTO, method = Method.GET)
 	public Map<String, Object> focus_on(@HookerRequestParam(name = "id") String id) throws Exception {
@@ -2131,7 +2179,7 @@ public class BuiltinUIServiceController {
 	private View requireView(String id) throws Exception {
 		View view = findViewById(id);
 		if (view == null) {
-			throw new IllegalArgumentException("Not found view: " + id);
+			throw new IllegalArgumentException("Not found view: " + id + ", Please refresh to obtain the new view information");
 		}
 		return view;
 	}

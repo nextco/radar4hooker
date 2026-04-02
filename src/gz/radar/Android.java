@@ -26,6 +26,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -114,17 +115,10 @@ public class Android {
         Field activitiesField = activityThreadClass.getDeclaredField("mActivities");
         activitiesField.setAccessible(true);
         Map activities = (Map) activitiesField.get(activityThread);
-        for (Object activityClientRecord : activities.values()) {
-            Class activityClietnRecordClass = activityClientRecord.getClass();
-            Field pausedField = activityClietnRecordClass.getDeclaredField("paused");
-            pausedField.setAccessible(true);
-            if (!pausedField.getBoolean(activityClientRecord)) {
-                Field activityField = activityClietnRecordClass.getDeclaredField("activity");
-                activityField.setAccessible(true);
-                return (T) activityField.get(activityClientRecord);
-            }
+        ActivityRecord topRecord = findTopActivityRecord(activities);
+        if (topRecord != null) {
+            return (T) topRecord.activity;
         }
-        // throw new Exception("请确认app界面已经打开，并且手机没有熄屏,或者看看前台有没有Dialog");
         return null;
     }
 
@@ -251,48 +245,97 @@ public class Android {
     public static ActivityInfo[] getActivityInfos() throws Exception {
         ActivityInfo[] activityInfos = null;
         List<ActivityInfo> results = new ArrayList<>();
-        ActivityInfo topActivity = null;
         Class activityThreadClass = Class.forName("android.app.ActivityThread");
         Object activityThread = activityThreadClass.getMethod("currentActivityThread").invoke(null);
         Field activitiesField = activityThreadClass.getDeclaredField("mActivities");
         activitiesField.setAccessible(true);
         Map activities = (Map) activitiesField.get(activityThread);
+        ActivityRecord topRecord = findTopActivityRecord(activities);
         for (Object activityClientRecord : activities.values()) {
-            Class activityClietnRecordClass = activityClientRecord.getClass();
-            Field pausedField = activityClietnRecordClass.getDeclaredField("paused");
-            pausedField.setAccessible(true);
-            Field activityField = activityClietnRecordClass.getDeclaredField("activity");
-            activityField.setAccessible(true);
-            Field stoppedField = activityClietnRecordClass.getDeclaredField("stopped");
-            stoppedField.setAccessible(true);
-            Activity activity = (Activity) activityField.get(activityClientRecord);
+            ActivityRecord record = toActivityRecord(activityClientRecord);
+            Activity activity = record.activity;
+            if (activity == null) {
+                continue;
+            }
             ActivityInfo activityInfo = new ActivityInfo(activity);
             activityInfo.setName(activity.getClass().getName());
-            activityInfo.setPaused(pausedField.getBoolean(activityClientRecord));
-            activityInfo.setOnTop(!activityInfo.isPaused());
+            activityInfo.setPaused(record.paused);
+            activityInfo.setOnTop(topRecord != null && topRecord.activity == activity);
             activityInfo.setTitle(activity.getTitle().toString());
-            activityInfo.setStopped(stoppedField.getBoolean(activityClientRecord));
-            if (activityInfo.isOnTop()) {
-                topActivity = activityInfo;
-            }else{
-                results.add(activityInfo);
-            }
+            activityInfo.setStopped(record.stopped);
+            results.add(activityInfo);
         }
-        int length = results.size() + (topActivity != null? 1 : 0);
+        results.sort(new Comparator<ActivityInfo>() {
+            @Override
+            public int compare(ActivityInfo left, ActivityInfo right) {
+                if (left.isOnTop() == right.isOnTop()) {
+                    return 0;
+                }
+                return left.isOnTop() ? -1 : 1;
+            }
+        });
+        int length = results.size();
         activityInfos = new ActivityInfo[length];
         if (length == 0) {
             return activityInfos;
         }
-        int index = 0;
-        if (topActivity != null) {
-            activityInfos[index] = topActivity;
-            index ++;
-        }
-        for (ActivityInfo item : results) {
-            activityInfos[index] = item;
-            index ++;
+        for (int i = 0; i < results.size(); i++) {
+            activityInfos[i] = results.get(i);
         }
         return activityInfos;
+    }
+
+    private static ActivityRecord findTopActivityRecord(Map activities) throws Exception {
+        if (activities == null || activities.isEmpty()) {
+            return null;
+        }
+        ActivityRecord bestRecord = null;
+        for (Object activityClientRecord : activities.values()) {
+            ActivityRecord record = toActivityRecord(activityClientRecord);
+            if (record.activity == null) {
+                continue;
+            }
+            if (bestRecord == null || compareActivityRecord(record, bestRecord) < 0) {
+                bestRecord = record;
+            }
+        }
+        return bestRecord;
+    }
+
+    private static ActivityRecord toActivityRecord(Object activityClientRecord) throws Exception {
+        Class activityClientRecordClass = activityClientRecord.getClass();
+
+        Field activityField = activityClientRecordClass.getDeclaredField("activity");
+        activityField.setAccessible(true);
+        Activity activity = (Activity) activityField.get(activityClientRecord);
+
+        Field pausedField = activityClientRecordClass.getDeclaredField("paused");
+        pausedField.setAccessible(true);
+
+        Field stoppedField = activityClientRecordClass.getDeclaredField("stopped");
+        stoppedField.setAccessible(true);
+
+        ActivityRecord record = new ActivityRecord();
+        record.activity = activity;
+        record.paused = pausedField.getBoolean(activityClientRecord);
+        record.stopped = stoppedField.getBoolean(activityClientRecord);
+        return record;
+    }
+
+    private static int compareActivityRecord(ActivityRecord candidate, ActivityRecord current) {
+        if (candidate.paused != current.paused) {
+            return candidate.paused ? 1 : -1;
+        }
+        if (candidate.stopped != current.stopped) {
+            return candidate.stopped ? 1 : -1;
+        }
+        return 0;
+    }
+
+    private static class ActivityRecord {
+        private Activity activity;
+        private boolean paused;
+        private boolean stopped;
     }
     
     public static String getSignatureInfo() throws Exception {

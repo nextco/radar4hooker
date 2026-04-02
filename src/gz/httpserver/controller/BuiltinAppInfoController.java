@@ -26,11 +26,15 @@ import gz.httpserver.annotation.HookerRequestParam;
 import gz.radar.Android;
 import gz.util.Logger;
 
-@HookerController("/hooker/appinfo/")
+@HookerController("/hooker/appinfo")
 public class BuiltinAppInfoController {
 	
 	private Logger logger = new Logger(BuiltinAppInfoController.class);
 	
+	/**
+	 * 获取当前 App 的基础信息、组件、权限、签名和常见目录。
+	 * 返回包名、版本、Activity/Service/Receiver/Provider 列表，以及 shared_prefs 和 databases 目录位置。
+	 */
 	@HookerRequestMapping(path="", produces = Produces.AUTO)
 	public Map<String, Object> app_info() throws Exception {
 	    Map<String, Object> info = new HashMap<>();
@@ -126,7 +130,10 @@ public class BuiltinAppInfoController {
 	    return info;
 	}
 
-
+	/**
+	 * 读取当前 App 的 shared_prefs 内容。
+	 * 返回每个 shared preferences 文件名及其完整键值对。
+	 */
 	@HookerRequestMapping(path="shared_prefs", produces = Produces.AUTO)
 	public List<Map<String, ?>> shared_prefs() throws Exception {
 		List<Map<String, ?>> all = new ArrayList<Map<String,?>>();
@@ -148,6 +155,10 @@ public class BuiltinAppInfoController {
 		return all;
 	}
 	
+	/**
+	 * 列出当前 App 的数据库、表和字段结构。
+	 * 返回每个 .db 文件下的表名及 PRAGMA table_info 查询得到的列定义。
+	 */
 	@HookerRequestMapping(path="databases", produces = Produces.AUTO)
 	public List<Map<String, Object>> databases() throws Exception {
 	    List<Map<String, Object>> all = new ArrayList<>();
@@ -206,6 +217,10 @@ public class BuiltinAppInfoController {
 	    return all;
 	}
 	
+	/**
+	 * 读取指定数据库表的数据。
+	 * 适合排查本地缓存和业务状态；limit 默认 100，最大限制为 1000。
+	 */
 	@HookerRequestMapping(path="read_table", produces = Produces.AUTO)
 	public List<Map<String, Object>> read_table(
 	        @HookerRequestParam(name = "database") String database,
