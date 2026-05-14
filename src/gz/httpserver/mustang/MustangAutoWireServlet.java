@@ -125,10 +125,10 @@ public class MustangAutoWireServlet extends MustangServlet {
 			return String.valueOf(value);
 		}
 		if (type == byte.class || type == Byte.class) {
-			return Byte.parseByte(value);
+			return value instanceof Number ? ((Number) value).byteValue() : Byte.parseByte(String.valueOf(value));
 		}
 		if (type == short.class || type == Short.class) {
-			return Short.parseShort(value);
+			return value instanceof Number ? ((Number) value).shortValue() : Short.parseShort(String.valueOf(value));
 		}
 		if (type == int.class || type == Integer.class) {
 			return value instanceof Number ? ((Number) value).intValue() : Integer.parseInt(String.valueOf(value));
@@ -137,10 +137,10 @@ public class MustangAutoWireServlet extends MustangServlet {
 			return value instanceof Number ? ((Number) value).longValue() : Long.parseLong(String.valueOf(value));
 		}
 		if (type == float.class || type == Float.class) {
-			return Float.parseFloat(value);
+			return value instanceof Number ? ((Number) value).floatValue() : Float.parseFloat(String.valueOf(value));
 		}
 		if (type == double.class || type == Double.class) {
-			return Double.parseDouble(value);
+			return value instanceof Number ? ((Number) value).doubleValue() : Double.parseDouble(String.valueOf(value));
 		}
 		if (type == boolean.class || type == Boolean.class) {
 			if (value instanceof Boolean) {
