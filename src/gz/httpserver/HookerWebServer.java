@@ -2,6 +2,7 @@ package gz.httpserver;
 
 import java.io.IOException;
 
+import gz.agent.DeviceAgent;
 import gz.httpserver.annotation.HookerRequestMapping.Produces;
 import gz.radar.Android;
 import gz.radar.AndroidUI;
@@ -63,6 +64,7 @@ public abstract class HookerWebServer extends NanoHTTPD {
 	@Override
 	public void stop() {
 		super.stop();
+		DeviceAgent.getInstance().stop();
 		System.getProperties().remove("hooker_server_flag");
 		try {
 			AndroidUI.showToast("webserver已关闭");

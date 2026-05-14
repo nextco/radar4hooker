@@ -1,17 +1,13 @@
 package gz.httpserver.mustang;
 
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.InputStream;
-import java.lang.reflect.Parameter;
+import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import android.util.Log;
 import gz.com.alibaba.fastjson.JSON;
 import gz.httpserver.HookerWebRequest;
 import gz.httpserver.HookerWebServer;
@@ -50,6 +46,21 @@ public class MustangWebServer extends HookerWebServer {
     
     private boolean isJson(String text) {
         return text != null && text.trim().startsWith("{");
+    }
+    
+    public Object invodeJava(Map<String, Object> invokePayload) throws Exception {
+    	FindResult findResult = mustangControllerRouter.findMustangController(invokePayload);
+    	if (findResult.isSuccess()) {
+    		MustangServlet mustangServlet = findResult.getServlet();
+    		return mustangServlet.directInvoke(invokePayload);
+    	}else if (findResult.isNotSupportGet()) {
+    		throw new IllegalArgumentException("GET not supported");
+    	}else if (findResult.isNotSupportPost()) {
+    		throw new IllegalArgumentException("POST not supported");
+    	}
+    	Object routeObj = invokePayload == null ? null : invokePayload.get("route");
+    	Object pathObj = routeObj instanceof Map ? ((Map) routeObj).get("path") : null;
+    	throw new IllegalArgumentException("404 Not Found: " + String.valueOf(pathObj));
     }
     
     
@@ -142,13 +153,9 @@ public class MustangWebServer extends HookerWebServer {
 	
 	
 	public String getAPIInfo() {
-		List<MustangServlet> allServlets = mustangControllerRouter.getAllServlets();
-		Collections.sort(allServlets, new Comparator<MustangServlet>() {
-			@Override
-			public int compare(MustangServlet left, MustangServlet right) {
-				return buildRoutePath(left).compareTo(buildRoutePath(right));
-			}
-		});
+		// HTML 首页和 remote agent 上报都依赖同一份排序后的路由数据，
+		// 这样浏览器里看到的接口顺序和设备注册给服务端的接口目录一致。
+		List<MustangServlet> allServlets = getSortedServlets();
 		StringBuilder info = new StringBuilder();
 		for (MustangServlet mustangServlet : allServlets) {
 			info.append("<div style='margin-top:12px;padding:12px 14px;background:#171717;border-radius:8px;'>");
@@ -168,7 +175,7 @@ public class MustangWebServer extends HookerWebServer {
 				.append(".")
 				.append(escapeHtml(mustangServlet.getTargetMethod().getName()))
 				.append("</div>");
-			Parameter[] parameters = mustangServlet.getTargetMethod().getParameters();
+			MethodParameterInfo[] parameters = describeParameters(mustangServlet.getTargetMethod());
 			if (parameters.length > 0) {
 				info.append("<div style='margin-top:8px;font-size:13px;'>");
 				for (int i = 0; i < parameters.length; i++) {
@@ -183,8 +190,57 @@ public class MustangWebServer extends HookerWebServer {
 		return info.toString();
 	}
 
-	private String describeParameter(Parameter parameter, int index) {
-		HookerRequestParam hookerRequestParam = parameter.getAnnotation(HookerRequestParam.class);
+	public List<Map<String, Object>> getAPIDefinitions() {
+		// 这是给 remote agent / 管理后台用的结构化接口目录：
+		// 不返回纯文本，而是把 method/path/handler/parameters 拆开，方便服务端 UI 展示和后续做能力发现。
+		List<MustangServlet> allServlets = getSortedServlets();
+		List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
+		for (MustangServlet mustangServlet : allServlets) {
+			Map<String, Object> item = new LinkedHashMap<String, Object>();
+			item.put("method", mustangServlet.getRequestMappingDefinition().method().name());
+			item.put("path", buildRoutePath(mustangServlet));
+			item.put("produces", mustangServlet.getProduces().name());
+			item.put("handler", mustangServlet.getTargetMethod().getDeclaringClass().getSimpleName()
+					+ "." + mustangServlet.getTargetMethod().getName());
+			List<Map<String, Object>> parameters = new ArrayList<Map<String, Object>>();
+			MethodParameterInfo[] parameterInfos = describeParameters(mustangServlet.getTargetMethod());
+			for (int i = 0; i < parameterInfos.length; i++) {
+				parameters.add(describeParameterMap(parameterInfos[i], i));
+			}
+			item.put("parameters", parameters);
+			result.add(item);
+		}
+		return result;
+	}
+
+	private List<MustangServlet> getSortedServlets() {
+		// 单独抽出来是为了让 HTML API 列表和结构化 API 定义共用同一套排序逻辑，
+		// 避免不同调用方看到的路由顺序不一致。
+		List<MustangServlet> allServlets = mustangControllerRouter.getAllServlets();
+		Collections.sort(allServlets, new Comparator<MustangServlet>() {
+			@Override
+			public int compare(MustangServlet left, MustangServlet right) {
+				return buildRoutePath(left).compareTo(buildRoutePath(right));
+			}
+		});
+		return allServlets;
+	}
+
+	private MethodParameterInfo[] describeParameters(java.lang.reflect.Method method) {
+		Class<?>[] parameterTypes = method.getParameterTypes();
+		Annotation[][] parameterAnnotations = method.getParameterAnnotations();
+		MethodParameterInfo[] parameters = new MethodParameterInfo[parameterTypes.length];
+		for (int i = 0; i < parameterTypes.length; i++) {
+			parameters[i] = new MethodParameterInfo(
+					parameterTypes[i],
+					findAnnotation(parameterAnnotations, i, HookerRequestParam.class),
+					findAnnotation(parameterAnnotations, i, HookerRequestPostJson.class));
+		}
+		return parameters;
+	}
+
+	private String describeParameter(MethodParameterInfo parameter, int index) {
+		HookerRequestParam hookerRequestParam = parameter.requestParam;
 		if (hookerRequestParam != null) {
 			StringBuilder desc = new StringBuilder();
 			desc.append("Param ")
@@ -192,7 +248,7 @@ public class MustangWebServer extends HookerWebServer {
 				.append(": ")
 				.append(hookerRequestParam.name())
 				.append(" (")
-				.append(parameter.getType().getSimpleName())
+				.append(parameter.type.getSimpleName())
 				.append(")");
 			desc.append(" required=")
 				.append(hookerRequestParam.required());
@@ -204,10 +260,69 @@ public class MustangWebServer extends HookerWebServer {
 			}
 			return desc.toString();
 		}
-		if (parameter.isAnnotationPresent(HookerRequestPostJson.class)) {
-			return "Body: JSON -> " + parameter.getType().getSimpleName();
+		if (parameter.postJson != null) {
+			return "Body: JSON -> " + parameter.type.getSimpleName();
 		}
-		return "Injected: " + parameter.getType().getSimpleName();
+		return "Injected: " + parameter.type.getSimpleName();
+	}
+
+	private Map<String, Object> describeParameterMap(MethodParameterInfo parameter, int index) {
+		// 远端管理页需要逐项展示参数，不适合只传 describeParameter() 那种拼好的字符串，
+		// 所以这里保留结构化字段，后面服务端可以自由渲染。
+		Map<String, Object> item = new LinkedHashMap<String, Object>();
+		item.put("index", Integer.valueOf(index));
+		item.put("type", parameter.type.getSimpleName());
+		HookerRequestParam hookerRequestParam = parameter.requestParam;
+		if (hookerRequestParam != null) {
+			item.put("kind", "request_param");
+			item.put("name", hookerRequestParam.name());
+			item.put("required", Boolean.valueOf(hookerRequestParam.required()));
+			String defaultValue = hookerRequestParam.defaultValue();
+			if (defaultValue != null && !defaultValue.isEmpty()
+					&& !HookerRequestParam.NO_DEFAULT_VALUE.equals(defaultValue)) {
+				item.put("defaultValue", defaultValue);
+			}
+			return item;
+		}
+		if (parameter.postJson != null) {
+			item.put("kind", "post_json");
+			item.put("name", "body");
+			item.put("required", Boolean.TRUE);
+			return item;
+		}
+		item.put("kind", "injected");
+		item.put("name", "arg" + index);
+		item.put("required", Boolean.FALSE);
+		return item;
+	}
+
+	private static <T extends Annotation> T findAnnotation(Annotation[][] parameterAnnotations, int index, Class<T> annotationClass) {
+		if (parameterAnnotations == null || index < 0 || index >= parameterAnnotations.length) {
+			return null;
+		}
+		Annotation[] annotations = parameterAnnotations[index];
+		if (annotations == null) {
+			return null;
+		}
+		for (int i = 0; i < annotations.length; i++) {
+			Annotation annotation = annotations[i];
+			if (annotationClass.isInstance(annotation)) {
+				return annotationClass.cast(annotation);
+			}
+		}
+		return null;
+	}
+
+	private static class MethodParameterInfo {
+		private final Class<?> type;
+		private final HookerRequestParam requestParam;
+		private final HookerRequestPostJson postJson;
+
+		private MethodParameterInfo(Class<?> type, HookerRequestParam requestParam, HookerRequestPostJson postJson) {
+			this.type = type;
+			this.requestParam = requestParam;
+			this.postJson = postJson;
+		}
 	}
 
 	private String buildRoutePath(MustangServlet mustangServlet) {

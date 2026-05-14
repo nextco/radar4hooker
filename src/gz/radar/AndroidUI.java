@@ -243,16 +243,24 @@ public class AndroidUI {
 	    }
 	    
 	    public static void showToast(final String text) throws Exception {
-	    	Android.getTopActivity().runOnUiThread(new Runnable() {
-			@Override
-			public void run() {
-				try {
-					Toast.makeText(Android.getApplication(), text, Toast.LENGTH_LONG).show();
-				} catch (Exception e) {
-					e.printStackTrace();
+	    	final Activity topActivity = Android.getTopActivity();
+	    	if (topActivity != null) {
+	    		topActivity.runOnUiThread(new Runnable() {
+				@Override
+				public void run() {
+					try {
+						Toast.makeText(Android.getApplication(), text, Toast.LENGTH_LONG).show();
+					} catch (Exception e) {
+						e.printStackTrace();
+					}
 				}
-			}
-		});
+			});
+	    		return;
+	    	}
+	    	Context application = Android.getApplication();
+	    	if (application != null) {
+	    		Toast.makeText(application, text, Toast.LENGTH_LONG).show();
+	    	}
     }
     
     public static void scrollBy(androidx.recyclerview.widget.RecyclerView rv, int x, int y) {

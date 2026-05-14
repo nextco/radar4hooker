@@ -146,6 +146,43 @@ public class MustangControllerRouter {
     	return new FindResult(FindResult.RESULT_SUCCESS, mustangServlet);
     }
 
+    public FindResult findMustangController(Map<String, Object> invokePayload) {
+    	if (invokePayload == null) {
+    		return new FindResult(FindResult.RESULT_FAILURE, null);
+    	}
+    	Object routeObj = invokePayload.get("route");
+    	if (!(routeObj instanceof Map)) {
+    		return new FindResult(FindResult.RESULT_FAILURE, null);
+    	}
+    	Map route = (Map) routeObj;
+    	Object pathObj = route.get("path");
+    	if (pathObj == null) {
+    		return new FindResult(FindResult.RESULT_FAILURE, null);
+    	}
+    	String path = String.valueOf(pathObj);
+    	MustangServlet mustangServlet = findMustangControllerWithPath(path);
+    	if (mustangServlet == null) {
+    		return new FindResult(FindResult.RESULT_FAILURE, null);
+    	}
+    	Object methodObj = route.get("method");
+    	String method = methodObj == null ? HookerRequestMapping.Method.GET.name() : String.valueOf(methodObj).toUpperCase();
+    	HookerRequestMapping.Method invokeMethod;
+    	try {
+    		invokeMethod = HookerRequestMapping.Method.valueOf(method);
+    	} catch (Exception e) {
+    		return new FindResult(FindResult.RESULT_FAILURE, null);
+    	}
+    	HookerRequestMapping requestMappingDefinition = mustangServlet.getRequestMappingDefinition();
+    	if (requestMappingDefinition.method() != invokeMethod) {
+    		if (invokeMethod == HookerRequestMapping.Method.GET) {
+    			return new FindResult(FindResult.RESULT_CONTROLLER_NOT_SUPPORT_GET, null);
+    		}else {
+    			return new FindResult(FindResult.RESULT_CONTROLLER_NOT_SUPPORT_POST, null);
+    		}
+    	}
+    	return new FindResult(FindResult.RESULT_SUCCESS, mustangServlet);
+    }
+
     public List<MustangServlet> getAllServlets() {
     	List<MustangServlet> allServlets = new ArrayList<MustangServlet>();
     	collectServlets(allServlets);

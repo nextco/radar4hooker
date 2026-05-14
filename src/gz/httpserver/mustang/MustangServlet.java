@@ -6,6 +6,7 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.util.Locale;
+import java.util.Map;
 
 import android.util.Log;
 import gz.httpserver.HookerWebRequest;
@@ -233,5 +234,7 @@ public abstract class MustangServlet {
 	public abstract Method getTargetMethod();
 
 	public abstract Object onResponse(HookerWebRequest request) throws Exception;
+	
+	public abstract Object directInvoke(Map<String, Object> invokePayload) throws Exception;
 
 }

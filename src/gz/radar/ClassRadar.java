@@ -3,7 +3,6 @@ package gz.radar;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.lang.reflect.Parameter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -113,7 +112,7 @@ public class ClassRadar {
         public String[] parameterNames;
         
 
-        public RadarConstructorMethod(int modifier, String describe, Parameter[] parameters) {
+        public RadarConstructorMethod(int modifier, String describe, String[] reflectParameterNames) {
             this.describe = describe;
             this.accessType = makeAccessType(modifier);
             String[] params = getMethodParams(describe);
@@ -122,10 +121,10 @@ public class ClassRadar {
             String[] throwsExceptions = getThrowsExceptions(describe);
             this.throwsNum = throwsExceptions.length;
             this.throwsExceptions = throwsExceptions;
-            if (parameters != null) {
-            	this.parameterNames = new String[parameters.length];
-            	for (int i = 0; i < parameters.length; i++) {
-            		String generateParamName = generateParamName(this.paramsClasses[i], this.parameterNames, i, parameters[i].getName());
+            if (reflectParameterNames != null) {
+            	this.parameterNames = new String[reflectParameterNames.length];
+            	for (int i = 0; i < reflectParameterNames.length; i++) {
+            		String generateParamName = generateParamName(this.paramsClasses[i], this.parameterNames, i, reflectParameterNames[i]);
             		this.parameterNames[i] = generateParamName;
     			}
             }else {
@@ -161,8 +160,8 @@ public class ClassRadar {
         public boolean isFinally;
         public boolean isAbstrat;
 
-        public RadarMethod(int modifier, String describe,  Parameter[] parameters) {
-            super(modifier, describe, parameters);
+        public RadarMethod(int modifier, String describe, String[] reflectParameterNames) {
+            super(modifier, describe, reflectParameterNames);
             this.isNative = java.lang.reflect.Modifier.isNative(modifier);
             this.isStatic = java.lang.reflect.Modifier.isStatic(modifier);
             this.isFinally = java.lang.reflect.Modifier.isFinal(modifier);
@@ -200,6 +199,34 @@ public class ClassRadar {
             int result = super.hashCode();
             result = 31 * result + (methodName != null ? methodName.hashCode() : 0);
             return result;
+        }
+    }
+
+    private static String[] resolveReflectParameterNames(Object executable, int parameterCount) {
+        if (parameterCount <= 0) {
+            return new String[0];
+        }
+        String[] fallbackNames = new String[parameterCount];
+        for (int i = 0; i < parameterCount; i++) {
+            fallbackNames[i] = "arg" + i;
+        }
+        if (executable == null) {
+            return fallbackNames;
+        }
+        try {
+            Method getParametersMethod = executable.getClass().getMethod("getParameters");
+            Object[] parameters = (Object[]) getParametersMethod.invoke(executable);
+            if (parameters == null || parameters.length != parameterCount) {
+                return fallbackNames;
+            }
+            String[] reflectParameterNames = new String[parameters.length];
+            for (int i = 0; i < parameters.length; i++) {
+                Method getNameMethod = parameters[i].getClass().getMethod("getName");
+                reflectParameterNames[i] = (String) getNameMethod.invoke(parameters[i]);
+            }
+            return reflectParameterNames;
+        } catch (Throwable ignored) {
+            return fallbackNames;
         }
     }
 
@@ -448,8 +475,8 @@ public class ClassRadar {
                 Constructor<?>[] constructors = clz.getDeclaredConstructors();
                 if (constructors != null) {
                     for (int i = 0; i < constructors.length; i++) {
-                    	Parameter[] parameters = constructors[i].getParameters();
-                        RadarConstructorMethod raderConstructorMethod = new RadarConstructorMethod(constructors[i].getModifiers(), constructors[i].toString(), parameters);
+                    	String[] reflectParameterNames = resolveReflectParameterNames(constructors[i], constructors[i].getParameterTypes().length);
+                        RadarConstructorMethod raderConstructorMethod = new RadarConstructorMethod(constructors[i].getModifiers(), constructors[i].toString(), reflectParameterNames);
                         raderConstructorMethod.isLocal = true;
                         radarConstructorMethods.add(raderConstructorMethod);
                     }
@@ -457,8 +484,8 @@ public class ClassRadar {
                 constructors = clz.getConstructors();
                 if (constructors != null){
                     for (int i = 0; i < constructors.length; i++) {
-                    	Parameter[] parameters = constructors[i].getParameters();
-                        RadarConstructorMethod raderConstructorMethod = new RadarConstructorMethod(constructors[i].getModifiers(), constructors[i].toString(), parameters);
+                    	String[] reflectParameterNames = resolveReflectParameterNames(constructors[i], constructors[i].getParameterTypes().length);
+                        RadarConstructorMethod raderConstructorMethod = new RadarConstructorMethod(constructors[i].getModifiers(), constructors[i].toString(), reflectParameterNames);
                         boolean needToSkip = false;
                         for (RadarConstructorMethod raderConstructorMethodAdded : radarConstructorMethods) {
                             if (raderConstructorMethodAdded.isLocal && raderConstructorMethodAdded.equals(raderConstructorMethod)) {
@@ -481,8 +508,8 @@ public class ClassRadar {
                 Method[] methods = clz.getDeclaredMethods();
                 if (methods != null){
                     for (int i = 0; i < methods.length; i++) {
-                    	Parameter[] parameters = methods[i].getParameters();
-                        RadarMethod radarMethod = new RadarMethod(methods[i].getModifiers(), methods[i].toString(), parameters);
+                    	String[] reflectParameterNames = resolveReflectParameterNames(methods[i], methods[i].getParameterTypes().length);
+                        RadarMethod radarMethod = new RadarMethod(methods[i].getModifiers(), methods[i].toString(), reflectParameterNames);
                         radarMethod.isLocal = true;
                         radarMethods.add(radarMethod);
                     }
@@ -490,8 +517,8 @@ public class ClassRadar {
                 methods = clz.getMethods();
                 if (methods != null){
                     for (int i = 0; i < methods.length; i++) {
-                    	Parameter[] parameters = methods[i].getParameters();
-                        RadarMethod radarMethod = new RadarMethod(methods[i].getModifiers(), methods[i].toString(), parameters);
+                    	String[] reflectParameterNames = resolveReflectParameterNames(methods[i], methods[i].getParameterTypes().length);
+                        RadarMethod radarMethod = new RadarMethod(methods[i].getModifiers(), methods[i].toString(), reflectParameterNames);
                         boolean needToSkip = false;
                         for (RadarMethod radarMethodAdded : radarMethods) {
                             if (radarMethodAdded.isLocal && !radarMethodAdded.isNative && radarMethodAdded.equals(radarMethod)) {

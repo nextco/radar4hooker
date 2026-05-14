@@ -1,9 +1,16 @@
 package gz.httpserver.controller;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,9 +23,9 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ProviderInfo;
 import android.content.pm.ServiceInfo;
-import android.content.pm.Signature;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import gz.agent.DeviceAgent;
 import gz.httpserver.annotation.HookerController;
 import gz.httpserver.annotation.HookerRequestMapping;
 import gz.httpserver.annotation.HookerRequestMapping.Produces;
@@ -28,6 +35,8 @@ import gz.util.Logger;
 
 @HookerController("/hooker/appinfo")
 public class BuiltinAppInfoController {
+
+	private static final long APP_DIR_MD5_MAX_SIZE = 20L * 1024L * 1024L;
 	
 	private Logger logger = new Logger(BuiltinAppInfoController.class);
 	
@@ -282,6 +291,274 @@ public class BuiltinAppInfoController {
 	    }
 	    sqlDb.close();
 	    return all;
+	}
+
+	@HookerRequestMapping(path="dex_md5s", produces = Produces.AUTO)
+	public Map<String, Object> dex_md5s() throws Exception {
+		Map<String, Object> result = new HashMap<String, Object>();
+		Application context = Android.getApplication();
+		File rootDir = new File(context.getApplicationInfo().dataDir);
+		List<Map<String, Object>> files = new ArrayList<Map<String,Object>>();
+		collectFiles(rootDir, rootDir, files, true);
+		Collections.sort(files, new java.util.Comparator<Map<String, Object>>() {
+			@Override
+			public int compare(Map<String, Object> left, Map<String, Object> right) {
+				String l = String.valueOf(left.get("relativePath"));
+				String r = String.valueOf(right.get("relativePath"));
+				return l.compareTo(r);
+			}
+		});
+		result.put("rootDir", rootDir.getAbsolutePath());
+		result.put("count", Integer.valueOf(files.size()));
+		result.put("files", files);
+		return result;
+	}
+
+	@HookerRequestMapping(path="app_dir_files", produces = Produces.AUTO)
+	public Map<String, Object> app_dir_files() throws Exception {
+		Map<String, Object> result = new HashMap<String, Object>();
+		Application context = Android.getApplication();
+		File rootDir = new File(context.getApplicationInfo().dataDir);
+		List<Map<String, Object>> files = new ArrayList<Map<String,Object>>();
+		collectTopLevelFiles(rootDir, files);
+		Collections.sort(files, new java.util.Comparator<Map<String, Object>>() {
+			@Override
+			public int compare(Map<String, Object> left, Map<String, Object> right) {
+				String l = String.valueOf(left.get("relativePath"));
+				String r = String.valueOf(right.get("relativePath"));
+				return l.compareTo(r);
+			}
+		});
+		result.put("rootDir", rootDir.getAbsolutePath());
+		result.put("count", Integer.valueOf(files.size()));
+		result.put("files", files);
+		return result;
+	}
+
+	@HookerRequestMapping(path="download_cloud_file", produces = Produces.AUTO, method = gz.httpserver.annotation.HookerRequestMapping.Method.POST)
+	public Map<String, Object> download_cloud_file(
+			@HookerRequestParam(name = "downloadUrl", defaultValue = "") String downloadUrl,
+			@HookerRequestParam(name = "downloadPath", defaultValue = "") String downloadPath,
+			@HookerRequestParam(name = "fileName", defaultValue = "") String fileName
+	) throws Exception {
+		Application context = Android.getApplication();
+		File rootDir = new File(context.getApplicationInfo().dataDir);
+		String resolvedDownloadUrl = resolveDownloadUrl(downloadUrl, downloadPath);
+		if (resolvedDownloadUrl.length() == 0) {
+			throw new IllegalArgumentException("downloadUrl or downloadPath is required");
+		}
+		String resolvedName = sanitizeFileName(fileName);
+		if (resolvedName.length() == 0) {
+			resolvedName = sanitizeFileName(extractFileName(resolvedDownloadUrl));
+		}
+		if (resolvedName.length() == 0) {
+			throw new IllegalArgumentException("fileName is required");
+		}
+		File target = new File(rootDir, resolvedName);
+		boolean overwritten = target.exists();
+		downloadToFile(resolvedDownloadUrl, target);
+		Map<String, Object> item = buildFileInfo(rootDir, target);
+		Map<String, Object> result = new HashMap<String, Object>();
+		result.put("ok", Boolean.TRUE);
+		result.put("rootDir", rootDir.getAbsolutePath());
+		result.put("downloadUrl", resolvedDownloadUrl);
+		result.put("overwritten", Boolean.valueOf(overwritten));
+		result.put("file", item);
+		return result;
+	}
+
+	private void collectFiles(File rootDir, File current, List<Map<String, Object>> files, boolean dexOnly) {
+		if (current == null || !current.exists()) {
+			return;
+		}
+		if (current.isFile()) {
+			if (!dexOnly || current.getName().toLowerCase().endsWith(".dex")) {
+				files.add(buildFileInfo(rootDir, current));
+			}
+			return;
+		}
+		File[] children = current.listFiles();
+		if (children == null) {
+			return;
+		}
+		for (int i = 0; i < children.length; i++) {
+			collectFiles(rootDir, children[i], files, dexOnly);
+		}
+	}
+
+	private void collectTopLevelFiles(File rootDir, List<Map<String, Object>> files) {
+		if (rootDir == null || !rootDir.exists()) {
+			return;
+		}
+		File[] children = rootDir.listFiles();
+		if (children == null) {
+			return;
+		}
+		for (int i = 0; i < children.length; i++) {
+			File child = children[i];
+			if (child != null && child.isFile()) {
+				files.add(buildFileInfo(rootDir, child, true));
+			}
+		}
+	}
+
+	private Map<String, Object> buildFileInfo(File rootDir, File current) {
+		return buildFileInfo(rootDir, current, false);
+	}
+
+	private Map<String, Object> buildFileInfo(File rootDir, File current, boolean md5ForSmallFilesOnly) {
+		Map<String, Object> item = new HashMap<String, Object>();
+		item.put("name", current.getName());
+		item.put("absolutePath", current.getAbsolutePath());
+		item.put("relativePath", buildRelativePath(rootDir, current));
+		item.put("size", Long.valueOf(current.length()));
+		item.put("lastModified", Long.valueOf(current.lastModified()));
+		if (!md5ForSmallFilesOnly || current.length() <= APP_DIR_MD5_MAX_SIZE) {
+			item.put("md5", computeMd5(current));
+		} else {
+			item.put("md5", "");
+		}
+		return item;
+	}
+
+	private String buildRelativePath(File rootDir, File file) {
+		String root = rootDir.getAbsolutePath();
+		String absolute = file.getAbsolutePath();
+		if (absolute.startsWith(root)) {
+			return absolute.substring(root.length());
+		}
+		return absolute;
+	}
+
+	private String computeMd5(File file) {
+		FileInputStream fis = null;
+		try {
+			MessageDigest digest = MessageDigest.getInstance("MD5");
+			fis = new FileInputStream(file);
+			byte[] buf = new byte[8192];
+			int read;
+			while ((read = fis.read(buf)) > 0) {
+				digest.update(buf, 0, read);
+			}
+			byte[] md5 = digest.digest();
+			StringBuilder sb = new StringBuilder(md5.length * 2);
+			for (int i = 0; i < md5.length; i++) {
+				sb.append(String.format("%02x", Integer.valueOf(md5[i] & 0xff)));
+			}
+			return sb.toString();
+		} catch (Exception e) {
+			logger.warn(e);
+			return "";
+		} finally {
+			if (fis != null) {
+				try {
+					fis.close();
+				} catch (Exception e) {
+					logger.warn(e);
+				}
+			}
+		}
+	}
+
+	private String sanitizeFileName(String fileName) {
+		if (fileName == null) {
+			return "";
+		}
+		String value = fileName.trim();
+		if (value.length() == 0) {
+			return "";
+		}
+		value = new File(value).getName();
+		if (".".equals(value) || "/".equals(value) || "..".equals(value)) {
+			return "";
+		}
+		return value.replace("\u0000", "");
+	}
+
+	private String extractFileName(String downloadUrl) {
+		if (downloadUrl == null) {
+			return "";
+		}
+		try {
+			URL url = new URL(downloadUrl);
+			String path = url.getPath();
+			if (path == null || path.length() == 0) {
+				return "";
+			}
+			return new File(path).getName();
+		} catch (Exception e) {
+			logger.warn(e);
+			return "";
+		}
+	}
+
+	private String resolveDownloadUrl(String downloadUrl, String downloadPath) {
+		String url = downloadUrl == null ? "" : downloadUrl.trim();
+		String path = downloadPath == null ? "" : downloadPath.trim();
+		if (path.length() > 0) {
+			String baseUrl = DeviceAgent.getInstance().getHubHttpBaseUrl();
+			if (baseUrl != null && baseUrl.length() > 0) {
+				if (!path.startsWith("/")) {
+					path = "/" + path;
+				}
+				return baseUrl + path;
+			}
+		}
+		return url;
+	}
+
+	private void downloadToFile(String downloadUrl, File target) throws Exception {
+		HttpURLConnection connection = null;
+		InputStream inputStream = null;
+		FileOutputStream outputStream = null;
+		File tmpFile = new File(target.getAbsolutePath() + ".download");
+		try {
+			connection = (HttpURLConnection) new URL(downloadUrl).openConnection();
+			connection.setRequestMethod("GET");
+			connection.setConnectTimeout(15000);
+			connection.setReadTimeout(60000);
+			connection.setUseCaches(false);
+			connection.connect();
+			int code = connection.getResponseCode();
+			if (code < 200 || code >= 300) {
+				throw new IllegalStateException("download failed, http status: " + code);
+			}
+			inputStream = connection.getInputStream();
+			outputStream = new FileOutputStream(tmpFile, false);
+			byte[] buffer = new byte[8192];
+			int read;
+			while ((read = inputStream.read(buffer)) != -1) {
+				outputStream.write(buffer, 0, read);
+			}
+			outputStream.flush();
+			if (target.exists() && !target.delete()) {
+				throw new IllegalStateException("failed to overwrite target: " + target.getAbsolutePath());
+			}
+			if (!tmpFile.renameTo(target)) {
+				throw new IllegalStateException("failed to move file to target: " + target.getAbsolutePath());
+			}
+		} finally {
+			if (outputStream != null) {
+				try {
+					outputStream.close();
+				} catch (Exception e) {
+					logger.warn(e);
+				}
+			}
+			if (inputStream != null) {
+				try {
+					inputStream.close();
+				} catch (Exception e) {
+					logger.warn(e);
+				}
+			}
+			if (connection != null) {
+				connection.disconnect();
+			}
+			if (tmpFile.exists() && !target.exists()) {
+				tmpFile.delete();
+			}
+		}
 	}
 	
 }
