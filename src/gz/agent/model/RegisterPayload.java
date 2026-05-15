@@ -9,6 +9,11 @@ public class RegisterPayload {
 	public String packageName;
 	public Integer localPort;
 	public String lanIp;
+	public String manufacturer;
+	public String brand;
+	public String model;
+	public Integer sdkInt;
+	public String androidRelease;
 	public List<String> capabilities;
 	public List<Map<String, Object>> endpoints;
 	public String version;

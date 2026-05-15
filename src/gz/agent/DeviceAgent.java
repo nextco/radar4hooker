@@ -10,6 +10,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.net.URI;
 
+import android.os.Build;
 import gz.com.alibaba.fastjson.JSON;
 import gz.agent.model.AgentMessage;
 import gz.agent.model.ErrorPayload;
@@ -271,6 +272,11 @@ public class DeviceAgent {
 		payload.packageName = config.packageName;
 		payload.localPort = Integer.valueOf(config.localPort);
 		payload.lanIp = HookerWebServerBoot.getLanIp();
+		payload.manufacturer = Build.MANUFACTURER;
+		payload.brand = Build.BRAND;
+		payload.model = Build.MODEL;
+		payload.sdkInt = Integer.valueOf(Build.VERSION.SDK_INT);
+		payload.androidRelease = Build.VERSION.RELEASE;
 		payload.capabilities = Arrays.asList("hooker_http");
 		MustangWebServer mustangWebServer = MustangWebServer.getInstance();
 		payload.endpoints = mustangWebServer != null ? mustangWebServer.getAPIDefinitions() : null;

@@ -367,6 +367,36 @@ public class BuiltinAppInfoController {
 		return result;
 	}
 
+	@HookerRequestMapping(path="delete_app_dir_file", produces = Produces.AUTO, method = gz.httpserver.annotation.HookerRequestMapping.Method.POST)
+	public Map<String, Object> delete_app_dir_file(
+			@HookerRequestParam(name = "fileName", defaultValue = "") String fileName
+	) throws Exception {
+		Application context = Android.getApplication();
+		File rootDir = new File(context.getApplicationInfo().dataDir);
+		String resolvedName = sanitizeFileName(fileName);
+		if (resolvedName.length() == 0) {
+			throw new IllegalArgumentException("fileName is required");
+		}
+		File target = new File(rootDir, resolvedName);
+		String rootPath = rootDir.getCanonicalPath() + File.separator;
+		String targetPath = target.getCanonicalPath();
+		if (!targetPath.startsWith(rootPath)) {
+			throw new IllegalArgumentException("fileName out of app dir");
+		}
+		if (!target.exists() || !target.isFile()) {
+			throw new IllegalArgumentException("file not found: " + resolvedName);
+		}
+		if (!target.delete()) {
+			throw new IllegalStateException("delete failed: " + resolvedName);
+		}
+		Map<String, Object> result = new HashMap<String, Object>();
+		result.put("ok", Boolean.TRUE);
+		result.put("rootDir", rootDir.getAbsolutePath());
+		result.put("fileName", resolvedName);
+		result.put("deleted", Boolean.TRUE);
+		return result;
+	}
+
 	private void collectFiles(File rootDir, File current, List<Map<String, Object>> files, boolean dexOnly) {
 		if (current == null || !current.exists()) {
 			return;
